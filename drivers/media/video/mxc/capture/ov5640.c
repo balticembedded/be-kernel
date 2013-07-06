@@ -782,6 +782,8 @@ static s32 ov5640_write_reg(u16 reg, u8 val)
 	au8Buf[0] = reg >> 8;
 	au8Buf[1] = reg & 0xff;
 	au8Buf[2] = val;
+	
+	pr_debug("BE: ov5640_write_reg. reg: %x, val_int: %d, val_hex: %x", reg, val, val);
 
 	if (i2c_master_send(ov5640_data.i2c_client, au8Buf, 3) < 0) {
 		pr_err("%s:write reg error:reg=%x,val=%x\n",
@@ -799,6 +801,8 @@ static s32 ov5640_read_reg(u16 reg, u8 *val)
 
 	au8RegBuf[0] = reg >> 8;
 	au8RegBuf[1] = reg & 0xff;
+	
+	pr_debug("BE: ov5640_read_reg. rreg: %x, val_int: %d, val_hex: %x", reg, *val, *val);
 
 	if (2 != i2c_master_send(ov5640_data.i2c_client, au8RegBuf, 2)) {
 		pr_err("%s:write reg error:reg=%x\n",
@@ -829,12 +833,16 @@ static int ov5640_init_mode(enum ov5640_frame_rate frame_rate,
 	register u8 Val = 0;
 	u8 RegVal = 0;
 	int retval = 0;
+	
+	pr_debug("BE: ov5640_init_mode");
 
 	if (mode > ov5640_mode_MAX || mode < ov5640_mode_MIN) {
 		pr_err("Wrong ov5640 mode detected!\n");
 		return -1;
 	}
-
+	
+	//pr_debug("@@@@@ BE: reaad valu from 0x3029 is: %x", ov5640_read_reg(0x3029, &RegVal));
+	
 	pModeSetting = ov5640_mode_info_data[frame_rate][mode].init_data_ptr;
 	iModeSettingArySize =
 		ov5640_mode_info_data[frame_rate][mode].init_data_size;
@@ -869,6 +877,10 @@ static int ov5640_init_mode(enum ov5640_frame_rate frame_rate,
 		if (Delay_ms)
 			msleep(Delay_ms);
 	}
+	
+	//retval = ov5640_write_reg(0x3029, 0xFF);
+	//pr_debug("@@@@@ BE: reaad valu from 0x3029 is: %x", ov5640_read_reg(0x3029, &RegVal));
+	
 err:
 	return retval;
 }
@@ -905,6 +917,8 @@ static int ioctl_g_ifparm(struct v4l2_int_device *s, struct v4l2_ifparm *p)
 static int ioctl_s_power(struct v4l2_int_device *s, int on)
 {
 	struct sensor *sensor = s->priv;
+	
+	pr_debug("BE: ioctl_s_power. on: %d", on);
 
 	if (on && !sensor->on) {
 		gpio_sensor_active(ov5640_data.csi);
@@ -937,6 +951,8 @@ static int ioctl_s_power(struct v4l2_int_device *s, int on)
 	}
 
 	sensor->on = on;
+	
+	pr_debug("BE: ioctl_s_power. result sensor->on: %d", sensor->on);
 
 	return 0;
 }
@@ -953,6 +969,8 @@ static int ioctl_g_parm(struct v4l2_int_device *s, struct v4l2_streamparm *a)
 	struct sensor *sensor = s->priv;
 	struct v4l2_captureparm *cparm = &a->parm.capture;
 	int ret = 0;
+
+	pr_debug("BE: ioctl_g_parm");
 
 	switch (a->type) {
 	/* This is the only case currently handled. */
@@ -1000,6 +1018,8 @@ static int ioctl_s_parm(struct v4l2_int_device *s, struct v4l2_streamparm *a)
 	u32 tgt_fps;	/* target frames per secound */
 	enum ov5640_frame_rate frame_rate;
 	int ret = 0;
+
+	pr_debug("BE: ioctl_s_parm");
 
 	/* Make sure power on */
 	if (camera_plat->pwdn)
@@ -1079,6 +1099,7 @@ static int ioctl_s_parm(struct v4l2_int_device *s, struct v4l2_streamparm *a)
  */
 static int ioctl_g_fmt_cap(struct v4l2_int_device *s, struct v4l2_format *f)
 {
+	pr_debug("BE: ioctl_g_fmt_cap");
 	struct sensor *sensor = s->priv;
 
 	f->fmt.pix = sensor->pix;
@@ -1098,6 +1119,8 @@ static int ioctl_g_fmt_cap(struct v4l2_int_device *s, struct v4l2_format *f)
 static int ioctl_g_ctrl(struct v4l2_int_device *s, struct v4l2_control *vc)
 {
 	int ret = 0;
+
+	pr_debug("BE: ioctl_g_ctrl");
 
 	switch (vc->id) {
 	case V4L2_CID_BRIGHTNESS:
@@ -1192,6 +1215,7 @@ static int ioctl_s_ctrl(struct v4l2_int_device *s, struct v4l2_control *vc)
 static int ioctl_enum_framesizes(struct v4l2_int_device *s,
 				 struct v4l2_frmsizeenum *fsize)
 {
+	pr_debug("BE: ioctl_enum_framesizes");
 	if (fsize->index > ov5640_mode_MAX)
 		return -EINVAL;
 
@@ -1215,6 +1239,7 @@ static int ioctl_enum_framesizes(struct v4l2_int_device *s,
  */
 static int ioctl_g_chip_ident(struct v4l2_int_device *s, int *id)
 {
+	pr_debug("BE: ioctl_g_chip_ident");
 	((struct v4l2_dbg_chip_ident *)id)->match.type =
 					V4L2_CHIP_MATCH_I2C_DRIVER;
 	strcpy(((struct v4l2_dbg_chip_ident *)id)->match.name, "ov5640_camera");
@@ -1245,6 +1270,7 @@ static int ioctl_enum_fmt_cap(struct v4l2_int_device *s,
 	if (fmt->index > ov5640_mode_MAX)
 		return -EINVAL;
 
+	pr_debug("BE: ioctl_enum_fmt_cap");
 	fmt->pixelformat = ov5640_data.pix.pixelformat;
 
 	return 0;
@@ -1262,6 +1288,8 @@ static int ioctl_dev_init(struct v4l2_int_device *s)
 	u32 tgt_xclk;	/* target xclk */
 	u32 tgt_fps;	/* target frames per secound */
 	enum ov5640_frame_rate frame_rate;
+
+	pr_debug("BE: ioctl_dev_init");
 
 	gpio_sensor_active(ov5640_data.csi);
 	ov5640_data.on = true;
@@ -1298,6 +1326,7 @@ static int ioctl_dev_init(struct v4l2_int_device *s)
  */
 static int ioctl_dev_exit(struct v4l2_int_device *s)
 {
+	pr_debug("BE: ioctl_dev_exit");
 	gpio_sensor_inactive(ov5640_data.csi);
 
 	return 0;
@@ -1356,6 +1385,7 @@ static struct v4l2_int_device ov5640_int_device = {
 static int ov5640_probe(struct i2c_client *client,
 			const struct i2c_device_id *id)
 {
+	pr_debug("BE: ov5640_probe. cleint addr: %x,  client name: %s", client->addr, client->name);
 	int retval;
 	struct mxc_camera_platform_data *plat_data = client->dev.platform_data;
 
@@ -1371,7 +1401,7 @@ static int ov5640_probe(struct i2c_client *client,
 	ov5640_data.pix.height = 480;
 	ov5640_data.streamcap.capability = V4L2_MODE_HIGHQUALITY |
 					   V4L2_CAP_TIMEPERFRAME;
-	ov5640_data.streamcap.capturemode = 0;
+	ov5640_data.streamcap.capturemode = 0;  //BE CHANGED, was 0
 	ov5640_data.streamcap.timeperframe.denominator = DEFAULT_FPS;
 	ov5640_data.streamcap.timeperframe.numerator = 1;
 
@@ -1496,6 +1526,8 @@ static int ov5640_remove(struct i2c_client *client)
 static __init int ov5640_init(void)
 {
 	u8 err;
+
+	pr_debug("================\n BE: init called for ovdriver");
 
 	err = i2c_add_driver(&ov5640_i2c_driver);
 	if (err != 0)

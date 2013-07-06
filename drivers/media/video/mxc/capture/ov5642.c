@@ -1752,11 +1752,15 @@ extern void gpio_sensor_inactive(unsigned int csi);
 
 static s32 ov5642_write_reg(u16 reg, u8 val)
 {
+	
+	
 	u8 au8Buf[3] = {0};
 
 	au8Buf[0] = reg >> 8;
 	au8Buf[1] = reg & 0xff;
 	au8Buf[2] = val;
+	
+	pr_debug("BE: ov5642_write_reg. reg: %x, val_int: %d, val_hex: %x", reg, val, val);
 
 	if (i2c_master_send(ov5642_data.i2c_client, au8Buf, 3) < 0) {
 		pr_err("%s:write reg error:reg=%x,val=%x\n",
@@ -1769,11 +1773,15 @@ static s32 ov5642_write_reg(u16 reg, u8 val)
 
 static s32 ov5642_read_reg(u16 reg, u8 *val)
 {
+	
+	
 	u8 au8RegBuf[2] = {0};
 	u8 u8RdVal = 0;
 
 	au8RegBuf[0] = reg >> 8;
 	au8RegBuf[1] = reg & 0xff;
+	
+	pr_debug("BE: ov5642_read_reg. rreg: %x, val_int: %d, val_hex: %x", reg, *val, *val);
 
 	if (2 != i2c_master_send(ov5642_data.i2c_client, au8RegBuf, 2)) {
 		pr_err("%s:write reg error:reg=%x\n",
@@ -1794,6 +1802,9 @@ static s32 ov5642_read_reg(u16 reg, u8 *val)
 
 static int ov5642_set_rotate_mode(struct reg_value *rotate_mode)
 {
+	
+	
+	
 	s32 i = 0;
 	s32 iModeSettingArySize = 2;
 	register u32 Delay_ms = 0;
@@ -1802,6 +1813,9 @@ static int ov5642_set_rotate_mode(struct reg_value *rotate_mode)
 	register u8 Val = 0;
 	u8 RegVal = 0;
 	int retval = 0;
+	
+	pr_debug("BE: ov5642_set_rotate_mode");
+	
 	for (i = 0; i < iModeSettingArySize; ++i, ++rotate_mode) {
 		Delay_ms = rotate_mode->u32Delay_ms;
 		RegAddr = rotate_mode->u16RegAddr;
@@ -1840,6 +1854,8 @@ static int ov5642_init_mode(enum ov5642_frame_rate frame_rate,
 	register u8 Val = 0;
 	u8 RegVal = 0;
 	int retval = 0;
+	
+	pr_debug("BE: ov5642_init_mode");
 
 	if (mode > ov5642_mode_MAX || mode < ov5642_mode_MIN) {
 		pr_err("Wrong ov5642 mode detected!\n");
@@ -1886,6 +1902,9 @@ err:
 
 static int ov5642_write_snapshot_para(void)
 {
+	
+	pr_debug("BE: ov5642_write_snapshot_para");
+	
 	bool m_60Hz = false;
 	u16 capture_frame_rate = 50;
 	u16 g_preview_frame_rate = 225;
@@ -2026,6 +2045,8 @@ static int ioctl_s_power(struct v4l2_int_device *s, int on)
 {
 	struct sensor *sensor = s->priv;
 
+	pr_debug("BE: ioctl_s_power. on: %d", on);
+
 	if (on && !sensor->on) {
 		gpio_sensor_active(ov5642_data.csi);
 		if (io_regulator)
@@ -2058,6 +2079,8 @@ static int ioctl_s_power(struct v4l2_int_device *s, int on)
 
 	sensor->on = on;
 
+	pr_debug("BE: ioctl_s_power. result sensor->on: %d", sensor->on);
+	
 	return 0;
 }
 
@@ -2073,6 +2096,8 @@ static int ioctl_g_parm(struct v4l2_int_device *s, struct v4l2_streamparm *a)
 	struct sensor *sensor = s->priv;
 	struct v4l2_captureparm *cparm = &a->parm.capture;
 	int ret = 0;
+	
+	pr_debug("BE: ioctl_g_parm");
 
 	switch (a->type) {
 	/* This is the only case currently handled. */
@@ -2120,6 +2145,8 @@ static int ioctl_s_parm(struct v4l2_int_device *s, struct v4l2_streamparm *a)
 	u32 tgt_fps;	/* target frames per secound */
 	enum ov5642_frame_rate frame_rate;
 	int ret = 0;
+	
+	pr_debug("BE: ioctl_s_parm");
 
 	/* Make sure power on */
 	if (camera_plat->pwdn)
@@ -2203,6 +2230,8 @@ static int ioctl_s_parm(struct v4l2_int_device *s, struct v4l2_streamparm *a)
  */
 static int ioctl_g_fmt_cap(struct v4l2_int_device *s, struct v4l2_format *f)
 {
+	
+	pr_debug("BE: ioctl_g_fmt_cap");
 	struct sensor *sensor = s->priv;
 
 	f->fmt.pix = sensor->pix;
@@ -2222,6 +2251,8 @@ static int ioctl_g_fmt_cap(struct v4l2_int_device *s, struct v4l2_format *f)
 static int ioctl_g_ctrl(struct v4l2_int_device *s, struct v4l2_control *vc)
 {
 	int ret = 0;
+
+	pr_debug("BE: ioctl_g_ctrl");
 
 	switch (vc->id) {
 	case V4L2_CID_BRIGHTNESS:
@@ -2340,6 +2371,7 @@ static int ioctl_s_ctrl(struct v4l2_int_device *s, struct v4l2_control *vc)
 static int ioctl_enum_framesizes(struct v4l2_int_device *s,
 				 struct v4l2_frmsizeenum *fsize)
 {
+	pr_debug("BE: ioctl_enum_framesizes");
 	if (fsize->index > ov5642_mode_MAX)
 		return -EINVAL;
 
@@ -2363,6 +2395,7 @@ static int ioctl_enum_framesizes(struct v4l2_int_device *s,
  */
 static int ioctl_g_chip_ident(struct v4l2_int_device *s, int *id)
 {
+	pr_debug("BE: ioctl_g_chip_ident");
 	((struct v4l2_dbg_chip_ident *)id)->match.type =
 					V4L2_CHIP_MATCH_I2C_DRIVER;
 	strcpy(((struct v4l2_dbg_chip_ident *)id)->match.name, "ov5642_camera");
@@ -2390,9 +2423,11 @@ static int ioctl_init(struct v4l2_int_device *s)
 static int ioctl_enum_fmt_cap(struct v4l2_int_device *s,
 			      struct v4l2_fmtdesc *fmt)
 {
+	
 	if (fmt->index > ov5642_mode_MAX)
 		return -EINVAL;
-
+		
+	pr_debug("BE: ioctl_enum_fmt_cap");
 	fmt->pixelformat = ov5642_data.pix.pixelformat;
 
 	return 0;
@@ -2406,6 +2441,7 @@ static int ioctl_enum_fmt_cap(struct v4l2_int_device *s,
  */
 static int ioctl_dev_init(struct v4l2_int_device *s)
 {
+	
 	struct reg_value *pModeSetting = NULL;
 	s32 i = 0;
 	s32 iModeSettingArySize = 0;
@@ -2420,6 +2456,8 @@ static int ioctl_dev_init(struct v4l2_int_device *s)
 	u32 tgt_xclk;	/* target xclk */
 	u32 tgt_fps;	/* target frames per secound */
 	enum ov5642_frame_rate frame_rate;
+
+	pr_debug("BE: ioctl_dev_init");
 
 	gpio_sensor_active(ov5642_data.csi);
 	ov5642_data.on = true;
@@ -2481,6 +2519,7 @@ err:
  */
 static int ioctl_dev_exit(struct v4l2_int_device *s)
 {
+	pr_debug("BE: ioctl_dev_exit");
 	gpio_sensor_inactive(ov5642_data.csi);
 
 	return 0;
@@ -2539,6 +2578,7 @@ static struct v4l2_int_device ov5642_int_device = {
 static int ov5642_probe(struct i2c_client *client,
 			const struct i2c_device_id *id)
 {
+	pr_debug("BE: ov5642_probe. cleint addr: %x,  client name: %s", client->addr, client->name);
 	int retval;
 	struct mxc_camera_platform_data *plat_data = client->dev.platform_data;
 
@@ -2554,7 +2594,7 @@ static int ov5642_probe(struct i2c_client *client,
 	ov5642_data.pix.height = 480;
 	ov5642_data.streamcap.capability = V4L2_MODE_HIGHQUALITY |
 					   V4L2_CAP_TIMEPERFRAME;
-	ov5642_data.streamcap.capturemode = 0;
+	ov5642_data.streamcap.capturemode = 0;  //be changed was 0
 	ov5642_data.streamcap.timeperframe.denominator = DEFAULT_FPS;
 	ov5642_data.streamcap.timeperframe.numerator = 1;
 
@@ -2645,6 +2685,7 @@ err1:
  */
 static int ov5642_remove(struct i2c_client *client)
 {
+	pr_debug("BE: ov5642_remove");
 	v4l2_int_device_unregister(&ov5642_int_device);
 
 	if (gpo_regulator) {
@@ -2680,6 +2721,10 @@ static __init int ov5642_init(void)
 {
 	u8 err;
 
+	//pr_err("DEBUG IS WORKING?????  ov");
+	pr_debug("================\n BE: init called for ovdriver");
+	
+	
 	err = i2c_add_driver(&ov5642_i2c_driver);
 	if (err != 0)
 		pr_err("%s:driver registration failed, error=%d \n",
@@ -2696,6 +2741,7 @@ static __init int ov5642_init(void)
  */
 static void __exit ov5642_clean(void)
 {
+	pr_debug("deleting driver");
 	i2c_del_driver(&ov5642_i2c_driver);
 }
 
