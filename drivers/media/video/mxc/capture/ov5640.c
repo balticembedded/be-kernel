@@ -341,7 +341,12 @@ static struct reg_value ov5640_setting_30fps_QVGA_320_240[] = {
 	{0x5487, 0x7d, 0, 0}, {0x5488, 0x87, 0, 0}, {0x5489, 0x91, 0, 0},
 	{0x548a, 0x9a, 0, 0}, {0x548b, 0xaa, 0, 0}, {0x548c, 0xb8, 0, 0},
 	{0x548d, 0xcd, 0, 0}, {0x548e, 0xdd, 0, 0}, {0x548f, 0xea, 0, 0},
-	{0x5490, 0x1d, 0, 0}, {0x5580, 0x20, 0, 0}, {0x5583, 0x40, 0, 0},
+	{0x5490, 0x1d, 0, 0}, 
+	
+	//{0x5580, 0x20, 0, 0}, //original 0b00100000
+	{0x5580, 0b00100100, 0, 0}, //[5]-enable gray, [2]- contrast enable
+	
+	{0x5583, 0x40, 0, 0},
 	{0x5584, 0x10, 0, 0}, {0x5589, 0x10, 0, 0}, {0x558a, 0x00, 0, 0},
 	{0x558b, 0xf8, 0, 0}, {0x5800, 0x23, 0, 0}, {0x5801, 0x15, 0, 0},
 	{0x5802, 0x10, 0, 0}, {0x5803, 0x10, 0, 0}, {0x5804, 0x15, 0, 0},
@@ -368,13 +373,13 @@ static struct reg_value ov5640_setting_30fps_QVGA_320_240[] = {
 	{0x3a1e, 0x26, 0, 0}, {0x3a11, 0x60, 0, 0}, {0x3a1f, 0x14, 0, 0},
 	{0x3008, 0x02, 0, 0}, {0x3035, 0x11, 0, 0},	
 	{0x3a00, 0b01111100, 0, 0}, //set main automatic controls
-	{0x3a05, 0b01111111, 0, 0}, //step controls, [0:4] bits determine how fast will AEC and AGC will change
+	{0x3a05, 0b01110000, 0, 0}, //step controls, [0:4] bits determine how fast will AEC and AGC will change
 	{0x3a17, 0x2, 0, 0},	//Gain base when in night mode
 	//{0x3a01, 0xff, 0, 0},	//Minimum exposure limit - after test this gives nothing to SPEED UP automatic control
 	//{0x5003, 0b1010, 0, 0},	//auto focus windof
 	
 	// **** START **** MANUAL EXPOUSURE AND GAIN set to very sensitive 
-	//~ {0x3503, 0x03, 0, 0}, //manual exposure and gain
+	// {0x3503, 0b00000010, 0, 0}, //manual  gain ([0] is fo exposure)
 	//~ // manual exposre...dont know how to get brighter that in automatic mode :|
 	//~ //{0x3503, 0x01, 0, 0}, //set [0] bit to manual exposure mode
 	//~ 
@@ -743,7 +748,10 @@ static struct reg_value ov5640_setting_30fps_PAL_720_576[] = {
 	{0x3008, 0x02, 0, 0}, {0x3035, 0x21, 0, 0}, {0x3002, 0x1c, 0, 0},
 	{0x3006, 0xc3, 0, 0}, {0x3821, 0x07, 0, 0}, {0x4300, 0x30, 0, 0},
 	{0x501f, 0x00, 0, 0}, {0x460c, 0x20, 0, 0}, {0x3824, 0x04, 0, 0},
-	{0x460b, 0x37, 0, 0}, {0x3a00, 0x7C, 0, 0}, {0x3a05, 0x70, 0, 0},
+	{0x460b, 0x37, 0, 0},
+	{0x3a00, 0b01111100, 0, 0}, //set main automatic controls
+	{0x3a05, 0b01111111, 0, 0}, //step controls, [0:4] bits determine how fast will AEC and AGC will change
+	{0x3a17, 0x2, 0, 0},	//Gain base when in night mode
 };
 
 
