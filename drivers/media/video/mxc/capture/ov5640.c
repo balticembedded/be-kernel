@@ -1338,6 +1338,20 @@ static struct v4l2_int_ioctl_desc ov5640_ioctl_desc[] = {
 				(v4l2_int_ioctl_func *)ioctl_g_chip_ident},
 };
 
+static struct v4l2_int_slave ov5640_slave = {
+	.ioctls = ov5640_ioctl_desc,
+	.num_ioctls = ARRAY_SIZE(ov5640_ioctl_desc),
+};
+
+static struct v4l2_int_device ov5640_int_device = {
+	.module = THIS_MODULE,
+	.name = "ov5640",
+	.type = v4l2_int_type_slave,
+	.u = {
+		.slave = &ov5640_slave,
+	},
+};
+
 /*!
  * ov5640_night_mode_inquire - ov5640 Night-mode inquiry function
  * @dev: pointer to standard generic device structure
@@ -1351,11 +1365,34 @@ ov5640_night_mode_inquire(struct device *dev,
                           char *buf)
 {
 	u8 tmp;
+	#ifndef CONFIG_MXC_IPU_V1
+		cam_data *cam;
+	#endif /* !CONFIG_MXC_IPU_V1 */
+	
+	/* Enable i2c clock */
+	// FIXME: Isn't enabling/disabling i2c clock here causing a race condition?
+	#ifdef CONFIG_MXC_IPU_V1
+		ipu_csi_enable_mclk(CSI_MCLK_I2C, true, true);
+	#else
+		// NOTE: v4l2-int-device.h says I shouldn't access master directly, but we do it anyway.
+		cam = ov5640_slave.master->priv;
+		if (!cam)
+			return -1; // FIXME: Specific error code?
+		ipu_csi_enable_mclk(cam->csi, true, true);
+	#endif /* CONFIG_MXC_IPU_V1 */
 	
 	/* Read register's current value */
 	if (ov5640_read_reg(OV5640_NIGHT_MODE_REG, &tmp)==-1)
 		return -1; // FIXME: Specific error code?
 	
+	/* Disable i2c clock */
+	#ifdef CONFIG_MXC_IPU_V1
+		ipu_csi_enable_mclk(CSI_MCLK_I2C, false, false);
+	#else
+		ipu_csi_enable_mclk(cam->csi, false, false);
+	#endif /* CONFIG_MXC_IPU_V1 */
+	
+	/* Prepare output */
 	switch (tmp & OV5640_NIGHT_MODE_MASK)
 	{
 		case 0:                      /* night-mode disabled */
@@ -1371,8 +1408,9 @@ ov5640_night_mode_inquire(struct device *dev,
 			buf[0] = '\?';
 			break;
 	}
+	buf[1] = '\n'; /* Add trailing newline */
 	
-	return 1;
+	return 2;
 }
 
 /*!
@@ -1389,6 +1427,9 @@ ov5640_night_mode_set(struct device *dev,
                       const char *buf, size_t count)
 {
 	u8 tmp;
+	#ifndef CONFIG_MXC_IPU_V1
+		cam_data *cam;
+	#endif /* !CONFIG_MXC_IPU_V1 */
 	
 	/* Check buffer size */
 	if (!(count==1 || (count==2 && buf[1]=='\n')))
@@ -1397,6 +1438,20 @@ ov5640_night_mode_set(struct device *dev,
 			__func__, count, count, buf);
 		return -1; // FIXME: Specific error code?
 	}
+	
+	// FIXME: Should we disable viewfinder here?
+	
+	/* Enable i2c clock */
+	// FIXME: Isn't enabling/disabling i2c clock here causing a race condition?
+	#ifdef CONFIG_MXC_IPU_V1
+		ipu_csi_enable_mclk(CSI_MCLK_I2C, true, true);
+	#else
+		// NOTE: v4l2-int-device.h says I shouldn't access master directly, but we do it anyway.
+		cam = ov5640_slave.master->priv;
+		if (!cam)
+			return -1; // FIXME: Specific error code?
+		ipu_csi_enable_mclk(cam->csi, true, true);
+	#endif /* CONFIG_MXC_IPU_V1 */
 	
 	/* Read register's current value */
 	if (ov5640_read_reg(OV5640_NIGHT_MODE_REG, &tmp)==-1)
@@ -1420,6 +1475,15 @@ ov5640_night_mode_set(struct device *dev,
 	if (ov5640_write_reg(OV5640_NIGHT_MODE_REG, tmp)==-1)
 		return -1; // FIXME: Specific error code?
 	
+	/* Disable i2c clock */
+	#ifdef CONFIG_MXC_IPU_V1
+		ipu_csi_enable_mclk(CSI_MCLK_I2C, false, false);
+	#else
+		ipu_csi_enable_mclk(cam->csi, false, false);
+	#endif /* CONFIG_MXC_IPU_V1 */
+	
+	// FIXME: Should reenable viewfinder here, if we disabled it before
+	
 	return 1;
 }
 
@@ -1434,20 +1498,6 @@ static struct device_attribute ov5640_dev_attr_night_mode = {
 	},
 	.show = &ov5640_night_mode_inquire,
 	.store = &ov5640_night_mode_set,
-};
-
-static struct v4l2_int_slave ov5640_slave = {
-	.ioctls = ov5640_ioctl_desc,
-	.num_ioctls = ARRAY_SIZE(ov5640_ioctl_desc),
-};
-
-static struct v4l2_int_device ov5640_int_device = {
-	.module = THIS_MODULE,
-	.name = "ov5640",
-	.type = v4l2_int_type_slave,
-	.u = {
-		.slave = &ov5640_slave,
-	},
 };
 
 /*!
