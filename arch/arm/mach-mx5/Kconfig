@@ -73,6 +73,13 @@ config MACH_MX53_LOCO
 	  Include support for MX53 LOCO platform. This includes specific
 	  configurations for the board and its peripherals.
 
+config MACH_MX53_BE_FIRST
+	bool "Support MX53 BE_FIRST platform"
+	select ARCH_MX53
+	help
+	  Include support for MX53 BE_FIRST platform. This includes specific
+	  configurations for the board and its peripherals.
+
 config MACH_MX50_ARM2
 	bool "Support MX50 Armadillo2 platform"
 	select ARCH_MX50
