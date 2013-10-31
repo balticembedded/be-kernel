@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2012 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2010-2011 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -32,6 +32,7 @@
 #include <linux/fsl_devices.h>
 #include <linux/spi/spi.h>
 #include <linux/i2c.h>
+#include <linux/i2c/mpr.h>
 #include <linux/ata.h>
 #include <linux/mtd/mtd.h>
 #include <linux/mtd/map.h>
@@ -43,7 +44,6 @@
 #include <linux/mxcfb.h>
 #include <linux/pwm_backlight.h>
 #include <linux/fec.h>
-#include <linux/powerkey.h>
 #include <linux/ahci_platform.h>
 #include <linux/gpio_keys.h>
 #include <linux/mfd/da9052/da9052.h>
@@ -55,7 +55,7 @@
 #include <asm/mach/arch.h>
 #include <asm/mach/time.h>
 #include <asm/mach/keypad.h>
-#include <asm/mach/flash.h>
+#include <linux/spi/flash.h>
 #include <mach/memory.h>
 #include <mach/gpio.h>
 #include <mach/mmc.h>
@@ -63,6 +63,7 @@
 #include <mach/iomux-mx53.h>
 #include <mach/i2c.h>
 #include <mach/mxc_iim.h>
+#include <mach/mxc_rfkill.h>
 #include <mach/check_fuse.h>
 
 #include "crm_regs.h"
@@ -77,6 +78,90 @@
  *
  * @ingroup MSL_MX53
  */
+
+/* MX53 SMD GPIO PIN configurations */
+#define MX53_SMD_KEY_RESET			(0*32 + 2)	/* GPIO1_2 */
+#define MX53_SMD_SATA_CLK_GPEN		(0*32 + 4)	/* GPIO1_4 */
+#define MX53_SMD_PMIC_FAULT			(0*32 + 5)	/* GPIO1_5 */
+#define MX53_SMD_SYS_ON_OFF_CTL		(0*32 + 7)	/* GPIO1_7 */
+#define MX53_SMD_PMIC_ON_OFF_REQ	(0*32 + 8)	/* GPIO1_8 */
+
+#define MX53_SMD_FEC_INT			(1*32 + 4)	/* GPIO2_4 */
+#define MX53_SMD_HEADPHONE_DEC		(1*32 + 5)	/* GPIO2_5 */
+#define MX53_SMD_ZIGBEE_INT			(1*32 + 6)	/* GPIO2_6 */
+#define MX53_SMD_ZIGBEE_RESET_B		(1*32 + 7)	/* GPIO2_7 */
+#define MX53_SMD_GPS_RESET_B		(1*32 + 12)	/* GPIO2_12 */
+#define MX53_SMD_WAKEUP_ZIGBEE		(1*32 + 13)	/* GPIO2_13 */
+#define MX53_SMD_KEY_VOL_DOWN		(1*32 + 14)	/* GPIO2_14 */
+#define MX53_SMD_KEY_VOL_UP			(1*32 + 15)	/* GPIO2_15 */
+#define MX53_SMD_FEC_PWR_EN			(1*32 + 16)	/* GPIO_2_16 */
+#define MX53_SMD_LID_OPN_CLS_SW		(1*32 + 23)	/* GPIO_2_23 */
+#define MX53_SMD_GPS_PPS		(1*32 + 24)	/* GPIO_2_24 */
+
+#define MX53_SMD_DCDC1V8_EN			(2*32 + 1)	/*GPIO_3_1 */
+#define MX53_SMD_AUD_AMP_STBY_B		(2*32 + 2)	/*GPIO_3_2 */
+#define MX53_SMD_SATA_PWR_EN		(2*32 + 3)	/*GPIO_3_3 */
+#define MX53_SMD_TPM_OSC_EN			(2*32 + 4)	/*GPIO_3_4 */
+#define MX53_SMD_WLAN_PD			(2*32 + 5)	/*GPIO_3_5 */
+#define MX53_SMD_WiFi_BT_PWR_EN		(2*32 + 10)	/*GPIO_3_10 */
+#define MX53_SMD_RECOVERY_MODE_SW	(2*32 + 11)	/*GPIO_3_11 */
+#define MX53_SMD_USB_OTG_OC			(2*32 + 12)	/*GPIO_3_12 */
+#define MX53_SMD_SD1_CD				(2*32 + 13)	/*GPIO_3_13 */
+#define MX53_SMD_USB_HUB_RESET_B	(2*32 + 14)	/*GPIO_3_14 */
+#define MX53_SMD_eCOMPASS_INT		(2*32 + 15)	/*GPIO_3_15 */
+#define MX53_SMD_CAP_TCH_INT1		(2*32 + 20)	/* GPIO_3_20 */
+#define MX53_SMD_BT_PRIORITY		(2*32 + 21)	/* GPIO_3_21 */
+#define MX53_SMD_ALS_INT			(2*32 + 22)	/* GPIO_3_22 */
+#define MX53_SMD_TPM_INT			(2*32 + 26)	/* GPIO_3_26 */
+#define MX53_SMD_MODEM_WKUP			(2*32 + 27)	/* GPIO_3_27 */
+#define MX53_SMD_BT_RESET			(2*32 + 28)	/* GPIO_3_28 */
+#define MX53_SMD_TPM_RST_B			(2*32 + 29)	/* GPIO_3_29 */
+#define MX53_SMD_CHRG_OR_CMOS		(2*32 + 30)	/* GPIO_3_30 */
+#define MX53_SMD_CAP_TCH_INT0		(2*32 + 31)	/* GPIO_3_31 */
+
+#define MX53_SMD_CHA_ISET			(3*32 + 2)	/* GPIO_4_2 */
+#define MX53_SMD_SYS_EJECT			(3*32 + 3)	/* GPIO_4_3 */
+#define MX53_SMD_HDMI_CEC_D			(3*32 + 4)	/* GPIO_4_4 */
+
+#define MX53_SMD_MODEM_DISABLE_B	(3*32 + 10)	/* GPIO_4_10 */
+#define MX53_SMD_SD1_WP				(3*32 + 11)	/* GPIO_4_11 */
+#define MX53_SMD_DCDC5V_BB_EN		(3*32 + 14)	/* GPIO_4_14 */
+#define MX53_SMD_WLAN_HOST_WAKE		(3*32 + 15)	/* GPIO_4_15 */
+
+#define MX53_SMD_HDMI_RESET_B		(4*32 + 0)	/* GPIO_5_0 */
+#define MX53_SMD_MODEM_RESET_B		(4*32 + 2)	/* GPIO_5_2 */
+#define MX53_SMD_KEY_INT			(4*32 + 4)	/* GPIO_5_4 */
+
+#define MX53_SMD_CAP_TCH_FUN0		(5*32 + 6)	/* GPIO_6_6 */
+#define MX53_SMD_CSI0_RST			(5*32 + 9)	/* GPIO_6_9 */
+#define MX53_SMD_CSI0_PWN			(5*32 + 10)	/* GPIO_6_10 */
+#define MX53_SMD_OSC_CKIH1_EN		(5*32 + 11)	/* GPIO_6_11 */
+#define MX53_SMD_HDMI_INT			(5*32 + 12)	/* GPIO_6_12 */
+#define MX53_SMD_LCD_PWR_EN			(5*32 + 13)	/* GPIO_6_13 */
+#define MX53_SMD_ACCL_INT1_IN		(5*32 + 15)	/* GPIO_6_15 */
+#define MX53_SMD_ACCL_INT2_IN		(5*32 + 16)	/* GPIO_6_16 */
+#define MX53_SMD_AC_IN				(5*32 + 17)	/* GPIO_6_17 */
+#define MX53_SMD_PWR_GOOD			(5*32 + 18)	/* GPIO_6_18 */
+
+#define MX53_SMD_CABC_EN0			(6*32 + 2)	/* GPIO_7_2 */
+#define MX53_SMD_DOCK_DECTECT		(6*32 + 3)	/* GPIO_7_3 */
+#define MX53_SMD_FEC_RST			(6*32 + 6)	/* GPIO_7_6 */
+#define MX53_SMD_USER_DEG_CHG_NONE	(6*32 + 7)	/* GPIO_7_7 */
+#define MX53_SMD_USB_OTG_PWR_EN		(6*32 + 8)	/* GPIO_7_8 */
+#define MX53_SMD_DEVELOP_MODE_SW	(6*32 + 9)	/* GPIO_7_9 */
+#define MX53_SMD_CABC_EN1			(6*32 + 10)	/* GPIO_7_10 */
+#define MX53_SMD_PMIC_INT			(6*32 + 11)	/* GPIO_7_11 */
+#define MX53_SMD_CAP_TCH_FUN1		(6*32 + 13)	/* GPIO_7_13 */
+
+#define MX53_OFFSET					(0x20000000)
+#define TZIC_WAKEUP0_OFFSET         (0x0E00)
+#define TZIC_WAKEUP1_OFFSET         (0x0E04)
+#define TZIC_WAKEUP2_OFFSET         (0x0E08)
+#define TZIC_WAKEUP3_OFFSET         (0x0E0C)
+#define GPIO7_0_11_IRQ_BIT			(0x1<<11)
+
+
+
 
 /* MX53 LOCO GPIO PIN configurations */
 #define NVDD_FAULT			(0*32 + 5)	/* GPIO1_5 */
@@ -109,89 +194,101 @@
 #define MX53_LOCO_MC34708_IRQ_REVA    (4*32 + 30)	/* GPIO5_30 */
 #define MX53_LOCO_MC34708_IRQ_REVB    (4*32 + 23)	/* GPIO5_23 */
 
-#define MX53_OFFSET					(0x20000000)
-#define TZIC_WAKEUP0_OFFSET         (0x0E00)
-#define TZIC_WAKEUP1_OFFSET         (0x0E04)
-#define TZIC_WAKEUP2_OFFSET         (0x0E08)
-#define TZIC_WAKEUP3_OFFSET         (0x0E0C)
-#define GPIO7_0_11_IRQ_BIT			(0x1<<11)
 
+
+
+extern int __init mx53_smd_init_da9052(void);
 extern void pm_i2c_init(u32 base_addr);
-static u32 mx53_loco_mc34708_irq;
-static iomux_v3_cfg_t mx53_loco_pads[] = {
-	/* FEC */
-	MX53_PAD_FEC_MDC__FEC_MDC,
-	MX53_PAD_FEC_MDIO__FEC_MDIO,
-	MX53_PAD_FEC_REF_CLK__FEC_TX_CLK,
-	MX53_PAD_FEC_RX_ER__FEC_RX_ER,
-	MX53_PAD_FEC_CRS_DV__FEC_RX_DV,
-	MX53_PAD_FEC_RXD1__FEC_RDATA_1,
-	MX53_PAD_FEC_RXD0__FEC_RDATA_0,
-	MX53_PAD_FEC_TX_EN__FEC_TX_EN,
-	MX53_PAD_FEC_TXD1__FEC_TDATA_1,
-	MX53_PAD_FEC_TXD0__FEC_TDATA_0,
-	/* FEC_nRST */
-	MX53_PAD_PATA_DA_0__GPIO7_6,
-	/* FEC_nINT */
-	MX53_PAD_PATA_DATA4__GPIO2_4,
-	/* AUDMUX5 */
-	MX53_PAD_KEY_COL0__AUDMUX_AUD5_TXC,
-	MX53_PAD_KEY_ROW0__AUDMUX_AUD5_TXD,
-	MX53_PAD_KEY_COL1__AUDMUX_AUD5_TXFS,
-	MX53_PAD_KEY_ROW1__AUDMUX_AUD5_RXD,
-	/* I2C2 */
-	MX53_PAD_KEY_COL3__I2C2_SCL,
-	MX53_PAD_KEY_ROW3__I2C2_SDA,
-	/* I2C3 */
-	MX53_PAD_GPIO_3__I2C3_SCL,
-	MX53_PAD_GPIO_6__I2C3_SDA,
 
-	/* SD1 */
-	MX53_PAD_SD1_CMD__ESDHC1_CMD,
-	MX53_PAD_SD1_CLK__ESDHC1_CLK,
-	MX53_PAD_SD1_DATA0__ESDHC1_DAT0,
-	MX53_PAD_SD1_DATA1__ESDHC1_DAT1,
-	MX53_PAD_SD1_DATA2__ESDHC1_DAT2,
-	MX53_PAD_SD1_DATA3__ESDHC1_DAT3,
-	/* SD3 */
-	MX53_PAD_PATA_DATA8__ESDHC3_DAT0,
-	MX53_PAD_PATA_DATA9__ESDHC3_DAT1,
-	MX53_PAD_PATA_DATA10__ESDHC3_DAT2,
-	MX53_PAD_PATA_DATA11__ESDHC3_DAT3,
-	MX53_PAD_PATA_DATA0__ESDHC3_DAT4,
-	MX53_PAD_PATA_DATA1__ESDHC3_DAT5,
-	MX53_PAD_PATA_DATA2__ESDHC3_DAT6,
-	MX53_PAD_PATA_DATA3__ESDHC3_DAT7,
-	MX53_PAD_PATA_IORDY__ESDHC3_CLK,
-	MX53_PAD_PATA_RESET_B__ESDHC3_CMD,
-	/* SD3_CD */
-	MX53_PAD_EIM_DA11__GPIO3_11,
-	/* SD3_WP */
-	MX53_PAD_EIM_DA12__GPIO3_12,
-	/* VGA */
+static iomux_v3_cfg_t mx53_smd_pads[] = {
+	/* DI_VGA_HSYNC */
 	MX53_PAD_EIM_OE__IPU_DI1_PIN7,
+	/* HDMI reset */
+	MX53_PAD_EIM_WAIT__GPIO5_0,
+	/* DI_VGA_VSYNC */
 	MX53_PAD_EIM_RW__IPU_DI1_PIN8,
-	/* DISPLB */
-	MX53_PAD_EIM_D20__IPU_SER_DISP0_CS,
-	MX53_PAD_EIM_D21__IPU_DISPB0_SER_CLK,
-	MX53_PAD_EIM_D22__IPU_DISPB0_SER_DIN,
-	MX53_PAD_EIM_D23__IPU_DI0_D0_CS,
-	/* DISP0_POWER_EN */
-	MX53_PAD_EIM_D24__GPIO3_24,
-	/* DISP0 DET INT */
+	/* CSPI1 */
+	MX53_PAD_EIM_EB2__ECSPI1_SS0,
+	MX53_PAD_EIM_D16__ECSPI1_SCLK,
+	MX53_PAD_EIM_D17__ECSPI1_MISO,
+	MX53_PAD_EIM_D18__ECSPI1_MOSI,
+	MX53_PAD_EIM_D19__ECSPI1_SS1,
+	/* BT: UART3*/
+	MX53_PAD_EIM_D24__UART3_TXD_MUX,
+	MX53_PAD_EIM_D25__UART3_RXD_MUX,
+	MX53_PAD_EIM_EB3__UART3_RTS,
+	MX53_PAD_EIM_D23__UART3_CTS,
+	/* LID_OPN_CLS_SW*/
+	MX53_PAD_EIM_CS0__GPIO2_23,
+	/* GPS_PPS */
+	MX53_PAD_EIM_CS1__GPIO2_24,
+	/* FEC_PWR_EN */
+	MX53_PAD_EIM_A22__GPIO2_16,
+	/* CAP_TCH_FUN0*/
+	MX53_PAD_EIM_A23__GPIO6_6,
+	/* KEY_INT */
+	MX53_PAD_EIM_A24__GPIO5_4,
+	/* MODEM_RESET_B */
+	MX53_PAD_EIM_A25__GPIO5_2,
+	/* CAP_TCH_INT1 */
+	MX53_PAD_EIM_D20__GPIO3_20,
+	/* BT_PRIORITY */
+	MX53_PAD_EIM_D21__GPIO3_21,
+	/* ALS_INT */
+	MX53_PAD_EIM_D22__GPIO3_22,
+	/* TPM_INT */
+	MX53_PAD_EIM_D26__GPIO3_26,
+	/* MODEM_WKUP */
+	MX53_PAD_EIM_D27__GPIO3_27,
+	/* BT_RESET */
+	MX53_PAD_EIM_D28__GPIO3_28,
+	/* TPM_RST_B */
+	MX53_PAD_EIM_D29__GPIO3_29,
+	/* CHARGER_NOW_OR_CMOS_RUN */
+	MX53_PAD_EIM_D30__GPIO3_30,
+	/* CAP_TCH_INT0 */
 	MX53_PAD_EIM_D31__GPIO3_31,
-
-	/* LVDS */
-	MX53_PAD_LVDS0_TX3_P__LDB_LVDS0_TX3,
-	MX53_PAD_LVDS0_CLK_P__LDB_LVDS0_CLK,
-	MX53_PAD_LVDS0_TX2_P__LDB_LVDS0_TX2,
-	MX53_PAD_LVDS0_TX1_P__LDB_LVDS0_TX1,
-	MX53_PAD_LVDS0_TX0_P__LDB_LVDS0_TX0,
-	MX53_PAD_LVDS1_TX3_P__LDB_LVDS1_TX3,
-	MX53_PAD_LVDS1_TX2_P__LDB_LVDS1_TX2,
-	MX53_PAD_LVDS1_CLK_P__LDB_LVDS1_CLK,
-	MX53_PAD_LVDS1_TX1_P__LDB_LVDS1_TX1,
-	MX53_PAD_LVDS1_TX0_P__LDB_LVDS1_TX0,
+	/* DCDC1V8_EN */
+	MX53_PAD_EIM_DA1__GPIO3_1,
+	/* AUD_AMP_STBY_B */
+	MX53_PAD_EIM_DA2__GPIO3_2,
+	/* SATA_PWR_EN */
+	MX53_PAD_EIM_DA3__GPIO3_3,
+	/* TPM_OSC_EN */
+	MX53_PAD_EIM_DA4__GPIO3_4,
+	/* WLAN_PD */
+	MX53_PAD_EIM_DA5__GPIO3_5,
+	/* WiFi_BT_PWR_EN */
+	MX53_PAD_EIM_DA10__GPIO3_10,
+	/* RECOVERY_MODE_SW */
+	MX53_PAD_EIM_DA11__GPIO3_11,
+	/* USB_OTG_OC */
+	MX53_PAD_EIM_DA12__GPIO3_12,
+	/* SD1_CD */
+	MX53_PAD_EIM_DA13__GPIO3_13,
+	/* USB_HUB_RESET_B */
+	MX53_PAD_EIM_DA14__GPIO3_14,
+	/* eCOMPASS_IN */
+	MX53_PAD_EIM_DA15__GPIO3_15,
+	/* HDMI_INT */
+	MX53_PAD_NANDF_WE_B__GPIO6_12,
+	/* LCD_PWR_EN */
+	MX53_PAD_NANDF_RE_B__GPIO6_13,
+	/* CSI0_RST */
+	MX53_PAD_NANDF_WP_B__GPIO6_9,
+	/* CSI0_PWN */
+	MX53_PAD_NANDF_RB0__GPIO6_10,
+	/* OSC_CKIH1_EN */
+	MX53_PAD_NANDF_CS0__GPIO6_11,
+	/* ACCL_INT1_IN */
+	MX53_PAD_NANDF_CS2__GPIO6_15,
+	/* ACCL_INT2_IN */
+	MX53_PAD_NANDF_CS3__GPIO6_16,
+	/* AUDMUX */
+	MX53_PAD_CSI0_DAT4__AUDMUX_AUD3_TXC,
+	MX53_PAD_CSI0_DAT5__AUDMUX_AUD3_TXD,
+	MX53_PAD_CSI0_DAT6__AUDMUX_AUD3_TXFS,
+	MX53_PAD_CSI0_DAT7__AUDMUX_AUD3_RXD,
 	/* I2C1 */
 	MX53_PAD_CSI0_DAT8__I2C1_SDA,
 	MX53_PAD_CSI0_DAT9__I2C1_SCL,
@@ -199,6 +296,7 @@ static iomux_v3_cfg_t mx53_loco_pads[] = {
 	MX53_PAD_CSI0_DAT10__UART1_TXD_MUX,
 	MX53_PAD_CSI0_DAT11__UART1_RXD_MUX,
 	/* CSI0 */
+	MX53_PAD_CSI0_DAT12__IPU_CSI0_D_12,
 	MX53_PAD_CSI0_DAT13__IPU_CSI0_D_13,
 	MX53_PAD_CSI0_DAT14__IPU_CSI0_D_14,
 	MX53_PAD_CSI0_DAT15__IPU_CSI0_D_15,
@@ -238,33 +336,137 @@ static iomux_v3_cfg_t mx53_loco_pads[] = {
 	MX53_PAD_DISP0_DAT21__IPU_DISP0_DAT_21,
 	MX53_PAD_DISP0_DAT22__IPU_DISP0_DAT_22,
 	MX53_PAD_DISP0_DAT23__IPU_DISP0_DAT_23,
-	/* Audio CLK*/
-	MX53_PAD_GPIO_0__CCM_SSI_EXT1_CLK,
-	/* PWM */
-	MX53_PAD_GPIO_1__PWM2_PWMO,
-	/* SPDIF */
-	MX53_PAD_GPIO_7__SPDIF_PLOCK,
-	MX53_PAD_GPIO_17__SPDIF_OUT1,
-	/* GPIO */
+	/* FEC */
+	MX53_PAD_FEC_MDC__FEC_MDC,
+	MX53_PAD_FEC_MDIO__FEC_MDIO,
+	MX53_PAD_FEC_REF_CLK__FEC_TX_CLK,
+	MX53_PAD_FEC_RX_ER__FEC_RX_ER,
+	MX53_PAD_FEC_CRS_DV__FEC_RX_DV,
+	MX53_PAD_FEC_RXD1__FEC_RDATA_1,
+	MX53_PAD_FEC_RXD0__FEC_RDATA_0,
+	MX53_PAD_FEC_TX_EN__FEC_TX_EN,
+	MX53_PAD_FEC_TXD1__FEC_TDATA_1,
+	MX53_PAD_FEC_TXD0__FEC_TDATA_0,
+	/* AUDMUX5 */
+	MX53_PAD_KEY_COL0__AUDMUX_AUD5_TXC,
+	MX53_PAD_KEY_ROW0__AUDMUX_AUD5_TXD,
+	MX53_PAD_KEY_COL1__AUDMUX_AUD5_TXFS,
+	MX53_PAD_KEY_ROW1__AUDMUX_AUD5_RXD,
+	/* MODEM_DISABLE_B */
+	MX53_PAD_KEY_COL2__GPIO4_10,
+	/* SD1_WP */
+	MX53_PAD_KEY_ROW2__GPIO4_11,
+	/* I2C2 */
+	MX53_PAD_KEY_COL3__I2C2_SCL,
+	MX53_PAD_KEY_ROW3__I2C2_SDA,
+	/* DCDC5V_BB_EN */
+	MX53_PAD_KEY_COL4__GPIO4_14,
+	/* WLAN_HOST_WAKE */
+	MX53_PAD_KEY_ROW4__GPIO4_15,
+	/* SD1 */
+	MX53_PAD_SD1_CMD__ESDHC1_CMD,
+	MX53_PAD_SD1_CLK__ESDHC1_CLK,
+	MX53_PAD_SD1_DATA0__ESDHC1_DAT0,
+	MX53_PAD_SD1_DATA1__ESDHC1_DAT1,
+	MX53_PAD_SD1_DATA2__ESDHC1_DAT2,
+	MX53_PAD_SD1_DATA3__ESDHC1_DAT3,
+	/* SD2 */
+	// NOTE this is commented out so that GPIO1_11 goes into its default state and we can use it as a GPIO pin, becuase
+	// ESDHC2_CMD is on the same pin and can be configured as alternative.
+//	MX53_PAD_SD2_CMD__ESDHC2_CMD,
+//	MX53_PAD_SD2_CLK__ESDHC2_CLK,
+//	MX53_PAD_SD2_DATA0__ESDHC2_DAT0,
+//	MX53_PAD_SD2_DATA1__ESDHC2_DAT1,
+//	MX53_PAD_SD2_DATA2__ESDHC2_DAT2,
+//	MX53_PAD_SD2_DATA3__ESDHC2_DAT3,
+	/* UART2 */
+	MX53_PAD_PATA_BUFFER_EN__UART2_RXD_MUX,
+	MX53_PAD_PATA_DMARQ__UART2_TXD_MUX,
+	/* DEVELOP_MODE_SW */
+	MX53_PAD_PATA_CS_0__GPIO7_9,
+	/* CABC_EN1 */
+	MX53_PAD_PATA_CS_1__GPIO7_10,
+	/* FEC_nRST */
+	MX53_PAD_PATA_DA_0__GPIO7_6,
+	/* USER_DEBUG_OR_CHARGER_DONE */
 	MX53_PAD_PATA_DA_1__GPIO7_7,
+	/* USB_OTG_PWR_EN */
 	MX53_PAD_PATA_DA_2__GPIO7_8,
+	/* SD3 */
+	MX53_PAD_PATA_DATA8__ESDHC3_DAT0,
+	MX53_PAD_PATA_DATA9__ESDHC3_DAT1,
+	MX53_PAD_PATA_DATA10__ESDHC3_DAT2,
+	MX53_PAD_PATA_DATA11__ESDHC3_DAT3,
+	MX53_PAD_PATA_DATA0__ESDHC3_DAT4,
+	MX53_PAD_PATA_DATA1__ESDHC3_DAT5,
+	MX53_PAD_PATA_DATA2__ESDHC3_DAT6,
+	MX53_PAD_PATA_DATA3__ESDHC3_DAT7,
+	MX53_PAD_PATA_IORDY__ESDHC3_CLK,
+	MX53_PAD_PATA_RESET_B__ESDHC3_CMD,
+	/* FEC_nINT */
+	MX53_PAD_PATA_DATA4__GPIO2_4,
+	/* HEADPHONE DET*/
 	MX53_PAD_PATA_DATA5__GPIO2_5,
+	/* ZigBee_INT*/
 	MX53_PAD_PATA_DATA6__GPIO2_6,
+	/* ZigBee_RESET_B */
+	MX53_PAD_PATA_DATA7__GPIO2_7,
+	/* GPS_RESET_B*/
+	MX53_PAD_PATA_DATA12__GPIO2_12,
+	/* WAKEUP_ZigBee */
+	MX53_PAD_PATA_DATA13__GPIO2_13,
+	/* KEY_VOL- */
 	MX53_PAD_PATA_DATA14__GPIO2_14,
+	/* KEY_VOL+ */
 	MX53_PAD_PATA_DATA15__GPIO2_15,
+	/* DOCK_DECTECT */
+	MX53_PAD_PATA_DIOR__GPIO7_3,
+	/* AC_IN */
+	MX53_PAD_PATA_DIOW__GPIO6_17,
+	/* PWR_GOOD */
+	MX53_PAD_PATA_DMACK__GPIO6_18,
+	/* CABC_EN0 */
 	MX53_PAD_PATA_INTRQ__GPIO7_2,
-	MX53_PAD_EIM_WAIT__GPIO5_0,
-	MX53_PAD_NANDF_WP_B__GPIO6_9,
-	MX53_PAD_NANDF_RB0__GPIO6_10,
-	MX53_PAD_NANDF_CS1__GPIO6_14,
-	MX53_PAD_NANDF_CS2__GPIO6_15,
-	MX53_PAD_NANDF_CS3__GPIO6_16,
+	MX53_PAD_GPIO_0__CCM_SSI_EXT1_CLK,
+	MX53_PAD_GPIO_1__PWM2_PWMO,
+	/* KEY_RESET */
+	MX53_PAD_GPIO_2__GPIO1_2,
+	/* I2C3 */
+	MX53_PAD_GPIO_3__I2C3_SCL,
+	MX53_PAD_GPIO_6__I2C3_SDA,
+	/* SATA_CLK_GPEN */
+	MX53_PAD_GPIO_4__GPIO1_4,
+	/* PMIC_FAULT */
 	MX53_PAD_GPIO_5__GPIO1_5,
-	MX53_PAD_GPIO_16__GPIO7_11,
+	/* SYS_ON_OFF_CTL */
+	MX53_PAD_GPIO_7__GPIO1_7,
+	/* PMIC_ON_OFF_REQ */
 	MX53_PAD_GPIO_8__GPIO1_8,
+	/* CHA_ISET */
+	MX53_PAD_GPIO_12__GPIO4_2,
+	/* SYS_EJECT */
+	MX53_PAD_GPIO_13__GPIO4_3,
+	//~ /* HDMI_CEC_D */
+	MX53_PAD_GPIO_14__GPIO4_4,
+	/* PMIC_INT */
+	//~ MX53_PAD_GPIO_16__GPIO7_11,  //@@ IMPORTANT..dont know why but these lines pull down the GPIO7_11 PIN and then our light sensor doesnt work..must be commented out
+	//~ MX53_PAD_GPIO_17__SPDIF_OUT1,
+	/* CAP_TCH_FUN1 */
+	MX53_PAD_GPIO_18__GPIO7_13,
+	/* LVDS */
+	MX53_PAD_LVDS0_TX3_P__LDB_LVDS0_TX3,
+	MX53_PAD_LVDS0_CLK_P__LDB_LVDS0_CLK,
+	MX53_PAD_LVDS0_TX2_P__LDB_LVDS0_TX2,
+	MX53_PAD_LVDS0_TX1_P__LDB_LVDS0_TX1,
+	MX53_PAD_LVDS0_TX0_P__LDB_LVDS0_TX0,
+	MX53_PAD_LVDS1_TX3_P__LDB_LVDS1_TX3,
+	MX53_PAD_LVDS1_TX2_P__LDB_LVDS1_TX2,
+	MX53_PAD_LVDS1_CLK_P__LDB_LVDS1_CLK,
+	MX53_PAD_LVDS1_TX1_P__LDB_LVDS1_TX1,
+	MX53_PAD_LVDS1_TX0_P__LDB_LVDS1_TX0,
 };
 
-static void loco_da9053_irq_wakeup_only_fixup(void)
+static void smd_da9053_irq_wakeup_only_fixup(void)
 {
 	void __iomem *tzic_base;
 	tzic_base = ioremap(MX53_TZIC_BASE_ADDR, SZ_4K);
@@ -281,25 +483,29 @@ static void loco_da9053_irq_wakeup_only_fixup(void)
 	pr_info("only da9053 irq is wakeup-enabled\n");
 }
 
-static void loco_suspend_enter(void)
+static void smd_suspend_enter(void)
 {
-	if (!board_is_mx53_loco_mc34708()) {
-		loco_da9053_irq_wakeup_only_fixup();
+	if (board_is_rev(BOARD_REV_4)) {
+		smd_da9053_irq_wakeup_only_fixup();
 		da9053_suspend_cmd_sw();
+	} else {
+		if (da9053_get_chip_version() !=
+			DA9053_VERSION_BB)
+			smd_da9053_irq_wakeup_only_fixup();
+
+		da9053_suspend_cmd_hw();
 	}
 }
 
-static void loco_suspend_exit(void)
+static void smd_suspend_exit(void)
 {
-	if (!board_is_mx53_loco_mc34708()) {
-		if (da9053_get_chip_version())
-			da9053_restore_volt_settings();
-	}
+	if (da9053_get_chip_version())
+		da9053_restore_volt_settings();
 }
 
-static struct mxc_pm_platform_data loco_pm_data = {
-	.suspend_enter = loco_suspend_enter,
-	.suspend_exit = loco_suspend_exit,
+static struct mxc_pm_platform_data smd_pm_data = {
+	.suspend_enter = smd_suspend_enter,
+	.suspend_exit = smd_suspend_exit,
 };
 
 static struct fb_videomode video_modes[] = {
@@ -310,11 +516,11 @@ static struct fb_videomode video_modes[] = {
 	 FB_VMODE_NONINTERLACED,
 	 0,},
 	{
-	 /* 800x480 @ 60 Hz , pixel clk @ 32MHz */
-	 "SEIKO-WVGA", 60, 800, 480, 29850, 89, 164, 23, 10, 10, 10,
-	 FB_SYNC_CLK_LAT_FALL,
-	 FB_VMODE_NONINTERLACED,
-	 0,},
+	/* 800x480 @ 60 Hz , pixel clk @ 32MHz */
+	"SEIKO-WVGA", 60, 800, 480, 29850, 89, 164, 23, 10, 10, 10,
+	FB_SYNC_CLK_LAT_FALL,
+	FB_VMODE_NONINTERLACED,
+	0,},
 	{
 	/* 1600x1200 @ 60 Hz 162M pixel clk*/
 	"UXGA", 60, 1600, 1200, 6172,
@@ -350,7 +556,16 @@ static struct fec_platform_data fec_data = {
 	.phy = PHY_INTERFACE_MODE_RMII,
 };
 
+
+static struct mxc_spi_master mxcspi1_data = {
+	.maxchipselect = 4,
+	.spi_version = 23,
+	.chipselect_active = NULL,
+	.chipselect_inactive = NULL,
+};
+
 static struct mxc_dvfs_platform_data dvfs_core_data = {
+	.reg_id = "DA9052_BUCK_CORE",
 	.clk1_id = "cpu_clk",
 	.clk2_id = "gpc_dvfs_clk",
 	.gpc_cntr_offset = MXC_GPC_CNTR_OFFSET,
@@ -373,14 +588,18 @@ static struct mxc_dvfs_platform_data dvfs_core_data = {
 	.delay_time = 30,
 };
 
-static struct mxc_bus_freq_platform_data bus_freq_data;
+static struct mxc_bus_freq_platform_data bus_freq_data = {
+	.gp_reg_id = "DA9052_BUCK_CORE",
+	.lp_reg_id = "DA9052_BUCK_PRO",
+};
 
 static struct tve_platform_data tve_data = {
-	.boot_enable = MXC_TVE_VGA,
+	.dac_reg = "DA9052_LDO7",
 };
 
 static struct ldb_platform_data ldb_data = {
 	.ext_ref = 1,
+	.boot_enable = MXC_LDBDI1,
 };
 
 static void mxc_iim_enable_fuse(void)
@@ -423,14 +642,14 @@ static struct resource mxcfb_resources[] = {
 
 static struct mxc_fb_platform_data fb_data[] = {
 	{
-	 .interface_pix_fmt = IPU_PIX_FMT_RGB565,
-	 .mode_str = "CLAA-WVGA",
+	 .interface_pix_fmt = IPU_PIX_FMT_RGB24,
+	 .mode_str = "1024x768M-16@60",
 	 .mode = video_modes,
 	 .num_modes = ARRAY_SIZE(video_modes),
 	 },
 	{
-	 .interface_pix_fmt = IPU_PIX_FMT_GBR24,
-	 .mode_str = "VGA-XGA",
+	 .interface_pix_fmt = IPU_PIX_FMT_RGB666,
+	 .mode_str = "XGA",
 	 .mode = video_modes,
 	 .num_modes = ARRAY_SIZE(video_modes),
 	 },
@@ -439,7 +658,7 @@ static struct mxc_fb_platform_data fb_data[] = {
 extern int primary_di;
 static int __init mxc_init_fb(void)
 {
-	if (!machine_is_mx53_beboard()) //machine_is_mx53_beboard() is generated automatically
+	if (!machine_is_mx53_loco())
 		return 0;
 
 	/*for loco board, set default display as VGA*/
@@ -478,21 +697,18 @@ device_initcall(mxc_init_fb);
 
 static void sii902x_hdmi_reset(void)
 {
-	gpio_set_value(DISP0_RESET, 0);
+	gpio_set_value(MX53_SMD_HDMI_RESET_B, 0);
 	msleep(10);
-	gpio_set_value(DISP0_RESET, 1);
+	gpio_set_value(MX53_SMD_HDMI_RESET_B, 1);
 	msleep(10);
 }
 
-static int sii902x_get_pins(void)
-{
-	/* Sii902x HDMI controller */
-	gpio_request(DISP0_RESET, "disp0-reset");
-	gpio_direction_output(DISP0_RESET, 0);
-	gpio_request(DISP0_DET_INT, "disp0-detect");
-	gpio_direction_input(DISP0_DET_INT);
-	return 1;
-}
+static struct mxc_lcd_platform_data sii902x_hdmi_data = {
+	.reset = sii902x_hdmi_reset,
+	.analog_reg = "DA9052_LDO2",
+	.fb_id = "DISP3 BG",
+	.boot_enable = 1,
+};
 
 static void sii902x_put_pins(void)
 {
@@ -500,22 +716,42 @@ static void sii902x_put_pins(void)
 	gpio_free(DISP0_DET_INT);
 }
 
-static struct mxc_lcd_platform_data sii902x_hdmi_data = {
-	.reset = sii902x_hdmi_reset,
-	.fb_id = "DISP3 BG",
-	.get_pins = sii902x_get_pins,
-	.put_pins = sii902x_put_pins,
-};
 
 static struct imxi2c_platform_data mxci2c_data = {
        .bitrate = 100000,
 };
 
+static struct mxc_camera_platform_data camera_data = {
+	.analog_regulator = "DA9052_LDO7",
+	.core_regulator = "DA9052_LDO9",
+	.mclk = 24000000,
+	.csi = 0,
+};
+
+static struct mxc_lightsensor_platform_data ls_data = {
+	.rext = 700,	/* calibration: 499K->700K */
+};
+
 static struct i2c_board_info mxc_i2c0_board_info[] __initdata = {
 	{
-	.type = "mma8450",
+	.type = "mma8451",
 	.addr = 0x1C,
 	 },
+	{
+	.type = "ov5640",
+	.addr = 0x3C,
+	.platform_data = (void *)&camera_data,
+	 },
+};
+
+static u16 smd_touchkey_martix[4] = {
+	KEY_BACK, KEY_HOME, KEY_MENU, KEY_SEARCH,
+};
+
+static struct mpr121_platform_data mpr121_keyboard_platdata = {
+	.keycount = ARRAY_SIZE(smd_touchkey_martix),
+	.vdd_uv = 3300000,
+	.matrix = smd_touchkey_martix,
 };
 
 static struct i2c_board_info mxc_i2c1_board_info[] __initdata = {
@@ -524,12 +760,55 @@ static struct i2c_board_info mxc_i2c1_board_info[] __initdata = {
 	 .addr = 0x0a,
 	 },
 	{
-	 .type = "sii902x",
-	 .addr = 0x39,
-	 .irq = gpio_to_irq(DISP0_DET_INT),
-	 .platform_data = &sii902x_hdmi_data,
+	.type = "mpr121_touchkey",
+	.addr = 0x5a,
+	.irq = gpio_to_irq(MX53_SMD_KEY_INT),
+	.platform_data = &mpr121_keyboard_platdata,
+	},
+	{
+	.type = "mag3110",
+	.addr = 0x0e,
+	.irq = gpio_to_irq(MX53_SMD_eCOMPASS_INT),
 	},
 };
+
+#if defined(CONFIG_KEYBOARD_GPIO) || defined(CONFIG_KEYBOARD_GPIO_MODULE)
+#define GPIO_BUTTON(gpio_num, ev_code, act_low, descr, wake)	\
+{								\
+	.gpio		= gpio_num,				\
+	.type		= EV_KEY,				\
+	.code		= ev_code,				\
+	.active_low	= act_low,				\
+	.desc		= "btn " descr,				\
+	.wakeup		= wake,					\
+}
+
+static struct gpio_keys_button smd_buttons[] = {
+	GPIO_BUTTON(MX53_SMD_KEY_VOL_UP, KEY_VOLUMEUP, 1, "volume-up", 0),
+	GPIO_BUTTON(MX53_SMD_KEY_VOL_DOWN, KEY_VOLUMEDOWN, 1, "volume-down", 0),
+};
+
+static struct gpio_keys_platform_data smd_button_data = {
+	.buttons	= smd_buttons,
+	.nbuttons	= ARRAY_SIZE(smd_buttons),
+};
+
+static struct platform_device smd_button_device = {
+	.name		= "gpio-keys",
+	.id		= -1,
+	.num_resources  = 0,
+	.dev		= {
+		.platform_data = &smd_button_data,
+	}
+};
+
+static void __init smd_add_device_buttons(void)
+{
+	platform_device_register(&smd_button_device);
+}
+#else
+static void __init smd_add_device_buttons(void) {}
+#endif
 
 static int p1003_ts_hw_status(void)
 {
@@ -542,17 +821,78 @@ static struct p1003_ts_platform_data p1003_ts_data = {
 
 static struct i2c_board_info mxc_i2c2_board_info[] __initdata = {
 	{
-	 .type = "p1003_fwv33",
-	 .addr = 0x41,
-	 .irq  = gpio_to_irq(DISP0_DET_INT),
-	 .platform_data = &p1003_ts_data,
+	.type = "sii902x",
+	.addr = 0x39,
+	.irq = gpio_to_irq(MX53_SMD_HDMI_INT),
+	.platform_data = &sii902x_hdmi_data,
 	},
 	{
-	 .type = "egalax_ts",
-	 .addr = 0x4,
-	 .irq  = gpio_to_irq(DISP0_DET_INT),
+	.type = "p1003_fwv33",
+	.addr = 0x41,
+	.irq  = gpio_to_irq(MX53_SMD_CAP_TCH_INT1),
+	.platform_data = &p1003_ts_data,
+	},
+	{
+		.type = "egalax_ts",
+		.addr = 0x4,
+		.irq = gpio_to_irq(MX53_SMD_CAP_TCH_INT1),
+	},
+	{
+	.type = "isl29023",
+	.addr = 0x44,
+	.irq  = gpio_to_irq(MX53_SMD_ALS_INT),
+	.platform_data = &ls_data,
 	},
 };
+
+#if defined(CONFIG_MTD_MXC_M25P80) || defined(CONFIG_MTD_MXC_M25P80_MODULE)
+static struct mtd_partition m25p32_partitions[] = {
+	{
+	.name = "bootloader",
+	.offset = 0,
+	.size = 0x00040000,
+	},
+	{
+	.name = "kernel",
+	.offset = MTDPART_OFS_APPEND,
+	.size = MTDPART_SIZ_FULL,
+	},
+};
+
+static struct flash_platform_data m25p32_spi_flash_data = {
+	.name = "m25p32",
+	.parts = m25p32_partitions,
+	.nr_parts = ARRAY_SIZE(m25p32_partitions),
+	.type = "m25p32",
+};
+#endif
+
+static struct spi_board_info m25p32_spi1_board_info[] __initdata = {
+#if defined(CONFIG_MTD_MXC_M25P80) || defined(CONFIG_MTD_MXC_M25P80_MODULE)
+	{
+		/* the modalias must be the same as spi device driver name */
+		.modalias = "m25p32",           /* Name of spi_driver for this device */
+		.max_speed_hz = 20000000,       /* max spi SCK clock speed in HZ */
+		.bus_num = 1,                   /* Framework bus number */
+		.chip_select = 1,               /* Framework chip select. */
+		.platform_data = &m25p32_spi_flash_data,
+	}
+#endif
+};
+
+static void spi_device_init(void)
+{
+	spi_register_board_info(m25p32_spi1_board_info,
+				ARRAY_SIZE(m25p32_spi1_board_info));
+}
+
+static void mx53_gpio_usbotg_driver_vbus(bool on)
+{
+	if (on)
+		gpio_set_value(MX53_SMD_USB_OTG_PWR_EN, 1);
+	else
+		gpio_set_value(MX53_SMD_USB_OTG_PWR_EN, 0);
+}
 
 static int sdhc_write_protect(struct device *dev)
 {
@@ -591,16 +931,27 @@ static struct mxc_mmc_platform_data mmc3_data = {
 	.caps = MMC_CAP_4_BIT_DATA | MMC_CAP_8_BIT_DATA
 		| MMC_CAP_DATA_DDR,
 	.min_clk = 400000,
-	.max_clk = 45000000,
+	.max_clk = 50000000,
 	.card_inserted_state = 0,
 	.status = sdhc_get_card_det_status,
 	.wp_status = sdhc_write_protect,
 	.clock_mmc = "esdhc_clk",
 };
 
+static int mxc_sgtl5000_amp_enable(int enable)
+{
+	gpio_request(MX53_SMD_AUD_AMP_STBY_B, "amp-standby");
+	if (enable)
+		gpio_direction_output(MX53_SMD_AUD_AMP_STBY_B, 1);
+	else
+		gpio_direction_output(MX53_SMD_AUD_AMP_STBY_B, 0);
+	gpio_free(MX53_SMD_AUD_AMP_STBY_B);
+	return 0;
+}
+
 static int headphone_det_status(void)
 {
-	return (gpio_get_value(HEADPHONE_DEC_B) == 0);
+	return (gpio_get_value(MX53_SMD_HEADPHONE_DEC) == 0);
 }
 
 static int mxc_sgtl5000_init(void);
@@ -609,33 +960,16 @@ static struct mxc_audio_platform_data sgtl5000_data = {
 	.ssi_num = 1,
 	.src_port = 2,
 	.ext_port = 5,
-	.hp_irq = gpio_to_irq(HEADPHONE_DEC_B),
+	.hp_irq = gpio_to_irq(MX53_SMD_HEADPHONE_DEC),
 	.hp_status = headphone_det_status,
+	.amp_enable = mxc_sgtl5000_amp_enable,
 	.init = mxc_sgtl5000_init,
 	.ext_ram_rx = 1,
 };
 
 static int mxc_sgtl5000_init(void)
 {
-	struct clk *ssi_ext1;
-	int rate;
-
-	ssi_ext1 = clk_get(NULL, "ssi_ext1_clk");
-	if (IS_ERR(ssi_ext1))
-			return -1;
-
-	rate = clk_round_rate(ssi_ext1, 24000000);
-	if (rate < 8000000 || rate > 27000000) {
-			printk(KERN_ERR "Error: SGTL5000 mclk freq %d out of range!\n",
-				   rate);
-			clk_put(ssi_ext1);
-			return -1;
-	}
-
-	clk_set_rate(ssi_ext1, rate);
-	clk_enable(ssi_ext1);
-	sgtl5000_data.sysclk = rate;
-
+	sgtl5000_data.sysclk = 22579200;
 	return 0;
 }
 
@@ -651,7 +985,7 @@ static struct mxc_asrc_platform_data mxc_asrc_data = {
 static struct mxc_spdif_platform_data mxc_spdif_data = {
 	.spdif_tx = 1,
 	.spdif_rx = 0,
-	.spdif_clk_44100 = -1,	/* Souce from CKIH1 for 44.1K */
+	.spdif_clk_44100 = 0,	/* Souce from CKIH1 for 44.1K */
 	/* Source from CCM spdif_clk (24M) for 48k and 32k
 	 * It's not accurate
 	 */
@@ -668,78 +1002,78 @@ static struct platform_device mxc_spdif_audio_device = {
 	.name = "imx-spdif-audio-device",
 };
 
-static void mx53_loco_usbh1_vbus(bool on)
+static void mx53_smd_bt_reset(void)
 {
-	if (on)
-		gpio_set_value(USB_PWREN, 1);
-	else
-		gpio_set_value(USB_PWREN, 0);
+	gpio_request(MX53_SMD_BT_RESET, "bt-reset");
+	gpio_direction_output(MX53_SMD_BT_RESET, 0);
+	/* pull down reset pin at least >5ms */
+	mdelay(6);
+	/* pull up after power supply BT */
+	gpio_set_value(MX53_SMD_BT_RESET, 1);
+	gpio_free(MX53_SMD_BT_RESET);
+	msleep(100);
+	/* Bluetooth need some time to reset */
 }
 
-#if defined(CONFIG_KEYBOARD_GPIO) || defined(CONFIG_KEYBOARD_GPIO_MODULE)
-#define GPIO_BUTTON(gpio_num, ev_code, act_low, descr, wake)	\
-{								\
-	.gpio		= gpio_num,				\
-	.type		= EV_KEY,				\
-	.code		= ev_code,				\
-	.active_low	= act_low,				\
-	.desc		= "btn " descr,				\
-	.wakeup		= wake,					\
+static int mx53_smd_bt_power_change(int status)
+{
+	if (status)
+		mx53_smd_bt_reset();
+
+	return 0;
 }
 
-static struct gpio_keys_button loco_buttons[] = {
-	GPIO_BUTTON(MX53_nONKEY, KEY_POWER, 1, "power", 0),
-	GPIO_BUTTON(USER_UI1, KEY_VOLUMEUP, 1, "volume-up", 0),
-	GPIO_BUTTON(USER_UI2, KEY_VOLUMEDOWN, 1, "volume-down", 0),
+static struct platform_device mxc_bt_rfkill = {
+	.name = "mxc_bt_rfkill",
 };
 
-static struct gpio_keys_platform_data loco_button_data = {
-	.buttons	= loco_buttons,
-	.nbuttons	= ARRAY_SIZE(loco_buttons),
+static struct mxc_bt_rfkill_platform_data mxc_bt_rfkill_data = {
+	.power_change = mx53_smd_bt_power_change,
 };
 
-static struct platform_device loco_button_device = {
-	.name		= "gpio-keys",
-	.id		= -1,
-	.num_resources  = 0,
-	.dev		= {
-		.platform_data = &loco_button_data,
-	}
+#if defined(CONFIG_BATTERY_MAX17085) || defined(CONFIG_BATTERY_MAX17085_MODULE)
+static struct resource smd_batt_resource[] = {
+	{
+	.flags = IORESOURCE_IO,
+	.name = "pwr-good",
+	.start = MX53_SMD_PWR_GOOD,
+	.end = MX53_SMD_PWR_GOOD,
+	},
+	{
+	.flags = IORESOURCE_IO,
+	.name = "ac-in",
+	.start = MX53_SMD_AC_IN,
+	.end = MX53_SMD_AC_IN,
+	},
+	{
+	.flags = IORESOURCE_IO,
+	.name = "charge-now",
+	.start = MX53_SMD_CHRG_OR_CMOS,
+	.end = MX53_SMD_CHRG_OR_CMOS,
+	},
+	{
+	.flags = IORESOURCE_IO,
+	.name = "charge-done",
+	.start = MX53_SMD_USER_DEG_CHG_NONE,
+	.end = MX53_SMD_USER_DEG_CHG_NONE,
+	},
 };
 
-static void __init loco_add_device_buttons(void)
+static struct platform_device smd_battery_device = {
+	.name           = "max17085_bat",
+	.resource	= smd_batt_resource,
+	.num_resources  = ARRAY_SIZE(smd_batt_resource),
+};
+
+static void __init smd_add_device_battery(void)
 {
-	platform_device_register(&loco_button_device);
+	platform_device_register(&smd_battery_device);
 }
 #else
-static void __init loco_add_device_buttons(void) {}
+static void __init smd_add_device_battery(void)
+{
+}
 #endif
-
-static void mxc_register_powerkey(pwrkey_callback pk_cb)
-{
-	pmic_event_callback_t power_key_event;
-
-	power_key_event.param = (void *)1;
-	power_key_event.func = (void *)pk_cb;
-	pmic_event_subscribe(EVENT_PWRONI, power_key_event);
-}
-
-static int mxc_pwrkey_getstatus(int id)
-{
-	int sense;
-
-	pmic_read_reg(REG_INT_SENSE1, &sense, 0xffffffff);
-	if (sense & (1 << 3))
-		return 0;
-
-	return 1;
-}
-
-static struct power_key_platform_data pwrkey_data = {
-	.key_value = KEY_F4,
-	.register_pwrkey = mxc_register_powerkey,
-	.get_key_status = mxc_pwrkey_getstatus,
-};
 
 /*!
  * Board specific fixup function. It is called by \b setup_arch() in
@@ -757,7 +1091,7 @@ static void __init fixup_mxc_board(struct machine_desc *desc, struct tag *tags,
 {
 	struct tag *t;
 	struct tag *mem_tag = 0;
-	int total_mem = SZ_1G;
+	int total_mem = SZ_512M; //SZ_1G;
 	int left_mem = 0;
 	int gpu_mem = SZ_128M;
 	int fb_mem = SZ_32M;
@@ -835,62 +1169,97 @@ static void __init fixup_mxc_board(struct machine_desc *desc, struct tag *tags,
 	}
 }
 
-static struct gpio_led gpio_leds[] = {
-	{
-		.name			= "USR",
-		.default_trigger	= "heartbeat",
-		.active_low		= 0,
-		.gpio			= USER_LED_EN,
-	},
-};
-
-static struct gpio_led_platform_data gpio_led_info = {
-	.leds		= gpio_leds,
-	.num_leds	= ARRAY_SIZE(gpio_leds),
-};
-
-static struct platform_device leds_gpio = {
-	.name	= "leds-gpio",
-	.id	= -1,
-	.dev	= {
-		.platform_data	= &gpio_led_info,
-	},
-};
-
-static void __init mx53_loco_io_init(void)
+static void __init mx53_smd_io_init(void)
 {
-	mxc_iomux_v3_setup_multiple_pads(mx53_loco_pads,
-					ARRAY_SIZE(mx53_loco_pads));
+	mxc_iomux_v3_setup_multiple_pads(mx53_smd_pads,
+					ARRAY_SIZE(mx53_smd_pads));
 
-	/* SD3 */
-	gpio_request(SD3_CD, "sd3-cd");
-	gpio_direction_input(SD3_CD);
-	gpio_request(SD3_WP, "sd3-wp");
-	gpio_direction_input(SD3_WP);
+	/* SD1 CD */
+	gpio_request(MX53_SMD_SD1_CD, "sd1-cd");
+	gpio_direction_input(MX53_SMD_SD1_CD);
+	/* SD1 WP */
+	gpio_request(MX53_SMD_SD1_WP, "sd1-wp");
+	gpio_direction_input(MX53_SMD_SD1_WP);
 
 	/* reset FEC PHY */
-	gpio_request(FEC_RST, "fec-rst");
-	gpio_direction_output(FEC_RST, 0);
-	gpio_set_value(FEC_RST, 0);
+	gpio_request(MX53_SMD_FEC_RST, "fec-rst");
+	gpio_direction_output(MX53_SMD_FEC_RST, 0);
+	gpio_set_value(MX53_SMD_FEC_RST, 0);
 	msleep(1);
-	gpio_set_value(FEC_RST, 1);
+	gpio_set_value(MX53_SMD_FEC_RST, 1);
 
 	/* headphone_det_b */
-	gpio_request(HEADPHONE_DEC_B, "headphone-dec");
-	gpio_direction_input(HEADPHONE_DEC_B);
+	gpio_request(MX53_SMD_HEADPHONE_DEC, "headphone-dec");
+	gpio_direction_input(MX53_SMD_HEADPHONE_DEC);
 
 	/* USB PWR enable */
-	gpio_request(USB_PWREN, "usb-pwr");
-	gpio_direction_output(USB_PWREN, 0);
+	gpio_request(MX53_SMD_USB_OTG_PWR_EN, "usb-pwr");
+	gpio_direction_output(MX53_SMD_USB_OTG_PWR_EN, 0);
 
-	/* LCD panel power enable */
-	gpio_request(DISP0_POWER_EN, "disp0-power-en");
-	gpio_direction_output(DISP0_POWER_EN, 1);
+	/* Enable MX53_SMD_DCDC1V8_EN */
+	gpio_request(MX53_SMD_DCDC1V8_EN, "dcdc1v8-en");
+	gpio_direction_output(MX53_SMD_DCDC1V8_EN, 1);
+	gpio_set_value(MX53_SMD_DCDC1V8_EN, 1);
 
-	/* USR LED */
-	gpio_request(USER_LED_EN, "user-led-en");
-	gpio_direction_output(USER_LED_EN, 1);
-	gpio_free(USER_LED_EN);
+	/* Enable OSC_CKIH1_EN for audio */
+	gpio_request(MX53_SMD_OSC_CKIH1_EN, "osc-en");
+	gpio_direction_output(MX53_SMD_OSC_CKIH1_EN, 1);
+	gpio_set_value(MX53_SMD_OSC_CKIH1_EN, 1);
+
+	/* Sii902x HDMI controller */
+	gpio_request(MX53_SMD_HDMI_RESET_B, "disp0-pwr-en");
+	gpio_direction_output(MX53_SMD_HDMI_RESET_B, 0);
+	gpio_request(MX53_SMD_HDMI_INT, "disp0-det-int");
+	gpio_direction_input(MX53_SMD_HDMI_INT);
+
+	/* MPR121 capacitive button */
+	gpio_request(MX53_SMD_KEY_INT, "cap-button-irq");
+	gpio_direction_input(MX53_SMD_KEY_INT);
+	gpio_free(MX53_SMD_KEY_INT);
+
+	/* Camera reset */
+	gpio_request(MX53_SMD_CSI0_RST, "cam-reset");
+	gpio_direction_output(MX53_SMD_CSI0_RST, 1);
+
+	/* Camera power down */
+	gpio_request(MX53_SMD_CSI0_PWN, "cam-pwdn");
+	gpio_direction_output(MX53_SMD_CSI0_PWN, 1);
+	msleep(1);
+	gpio_set_value(MX53_SMD_CSI0_PWN, 0);
+
+	/* Enable WiFi/BT Power*/
+	gpio_request(MX53_SMD_WiFi_BT_PWR_EN, "bt-wifi-pwren");
+	gpio_direction_output(MX53_SMD_WiFi_BT_PWR_EN, 1);
+
+	/* WiFi Power up sequence */
+	gpio_request(MX53_SMD_WLAN_PD, "wifi-pd");
+	gpio_direction_output(MX53_SMD_WLAN_PD, 1);
+	mdelay(1);
+	gpio_set_value(MX53_SMD_WLAN_PD, 0);
+	mdelay(5);
+	gpio_set_value(MX53_SMD_WLAN_PD, 1);
+	gpio_free(MX53_SMD_WLAN_PD);
+
+	/* battery */
+	gpio_request(MX53_SMD_AC_IN, "ac-in");
+	gpio_direction_input(MX53_SMD_AC_IN);
+	gpio_request(MX53_SMD_PWR_GOOD, "pwr-good");
+	gpio_direction_input(MX53_SMD_PWR_GOOD);
+	gpio_request(MX53_SMD_CHRG_OR_CMOS, "charger now");
+	gpio_direction_output(MX53_SMD_CHRG_OR_CMOS, 0);
+	gpio_request(MX53_SMD_USER_DEG_CHG_NONE, "charger done");
+	gpio_direction_output(MX53_SMD_USER_DEG_CHG_NONE, 0);
+
+	/* ambient light sensor */
+	gpio_request(MX53_SMD_ALS_INT, "als int");
+	gpio_direction_input(MX53_SMD_ALS_INT);
+
+	gpio_request(MX53_SMD_LCD_PWR_EN, "lcd-pwr-en");
+	gpio_direction_output(MX53_SMD_LCD_PWR_EN, 1);
+
+	/* mag3110 magnetometer sensor */
+	gpio_request(MX53_SMD_eCOMPASS_INT, "ecompass int");
+	gpio_direction_input(MX53_SMD_eCOMPASS_INT);
 }
 
 /*!
@@ -899,12 +1268,15 @@ static void __init mx53_loco_io_init(void)
 static void __init mxc_board_init(void)
 {
 
-	iomux_v3_cfg_t mc34708_int = MX53_PAD_CSI0_DAT12__GPIO5_30;
-	iomux_v3_cfg_t da9052_csi0_d12;
-
 	mxc_ipu_data.di_clk[0] = clk_get(NULL, "ipu_di0_clk");
 	mxc_ipu_data.di_clk[1] = clk_get(NULL, "ipu_di1_clk");
 	mxc_ipu_data.csi_clk[0] = clk_get(NULL, "ssi_ext1_clk");
+	/*
+	 *ssi_ext1_clk was enbled in arch/arm/mach-mx5/clock.c, and it was kept
+	 *open to provide clock for audio codec on i.Mx53 Quickstart, but MX53
+	 *SMD board have no needs to do that, so we close it here
+	 */
+	clk_disable(mxc_ipu_data.csi_clk[0]);
 	mxc_spdif_data.spdif_core_clk = clk_get(NULL, "spdif_xtal_clk");
 	clk_put(mxc_spdif_data.spdif_core_clk);
 
@@ -912,42 +1284,17 @@ static void __init mxc_board_init(void)
 	mxcsdhc3_device.resource[2].end = gpio_to_irq(SD3_CD);
 
 	mxc_cpu_common_init();
-	mx53_loco_io_init();
+	mx53_smd_io_init();
 
+	/* power off by sending shutdown command to da9053*/
+	pm_power_off = da9053_power_off;
 	mxc_register_device(&mxc_dma_device, NULL);
 	mxc_register_device(&mxc_wdt_device, NULL);
+	mxc_register_device(&mxcspi1_device, &mxcspi1_data);
 	mxc_register_device(&mxci2c_devices[0], &mxci2c_data);
 	mxc_register_device(&mxci2c_devices[1], &mxci2c_data);
 	mxc_register_device(&mxci2c_devices[2], &mxci2c_data);
-
-    if (board_is_mx53_loco_mc34708()) {
-		/* set pmic INT gpio pin */
-		if (board_is_rev(BOARD_REV_2)) {/*Board rev A*/
-			mc34708_int = MX53_PAD_CSI0_DAT12__GPIO5_30;
-			mx53_loco_mc34708_irq = MX53_LOCO_MC34708_IRQ_REVA;
-		} else if (board_is_rev(BOARD_REV_4)) {/*Board rev B*/
-			mc34708_int = MX53_PAD_CSI0_DAT5__GPIO5_23;
-			mx53_loco_mc34708_irq = MX53_LOCO_MC34708_IRQ_REVB;
-		}
-		mxc_iomux_v3_setup_pad(mc34708_int);
-		gpio_request(mx53_loco_mc34708_irq, "pmic-int");
-		gpio_direction_input(mx53_loco_mc34708_irq);
-		mx53_loco_init_mc34708(mx53_loco_mc34708_irq);
-		dvfs_core_data.reg_id = "SW1A";
-		tve_data.dac_reg = "VDAC";
-		bus_freq_data.gp_reg_id = "SW1A";
-		bus_freq_data.lp_reg_id = "SW2";
-		mxc_register_device(&mxc_powerkey_device, &pwrkey_data);
-	}
-    else {
-		da9052_csi0_d12 = MX53_PAD_CSI0_DAT12__IPU_CSI0_D_12;
-		mxc_iomux_v3_setup_pad(da9052_csi0_d12);
-		mx53_loco_init_da9052();
-		dvfs_core_data.reg_id = "DA9052_BUCK_CORE";
-		tve_data.dac_reg = "DA9052_LDO7";
-		bus_freq_data.gp_reg_id = "DA9052_BUCK_CORE";
-		bus_freq_data.lp_reg_id = "DA9052_BUCK_PRO";
-	}
+	mx53_smd_init_da9052();
 
 	mxc_register_device(&mxc_rtc_device, NULL);
 	mxc_register_device(&mxc_ipu_device, &mxc_ipu_data);
@@ -958,7 +1305,7 @@ static void __init mxc_board_init(void)
 	if (!mxc_fuse_get_gpu_status())
 		mxc_register_device(&gpu_device, &gpu_data);
 	mxc_register_device(&mxcscc_device, NULL);
-	mxc_register_device(&pm_device, &loco_pm_data);
+	mxc_register_device(&pm_device, &smd_pm_data);
 	mxc_register_device(&mxc_dvfs_core_device, &dvfs_core_data);
 	mxc_register_device(&busfreq_device, &bus_freq_data);
 	mxc_register_device(&mxc_iim_device, &iim_data);
@@ -971,6 +1318,10 @@ static void __init mxc_board_init(void)
 	mxc_register_device(&mxc_alsa_spdif_device, &mxc_spdif_data);
 	mxc_register_device(&ahci_fsl_device, &sata_data);
 	mxc_register_device(&imx_ahci_device_hwmon, NULL);
+	/* AHCI SATA PWR EN(DCDC_5V, DCDC_3V3_BB) on SATA bus */
+	gpio_request(MX53_SMD_SATA_PWR_EN, "sata-pwr-en");
+	gpio_direction_output(MX53_SMD_SATA_PWR_EN, 1);
+
 	mxc_register_device(&mxc_fec_device, &fec_data);
 	mxc_register_device(&mxc_ptp_device, NULL);
 	/* ASRC is only available for MX53 TO2.0 */
@@ -981,6 +1332,8 @@ static void __init mxc_board_init(void)
 		clk_put(mxc_asrc_data.asrc_audio_clk);
 		mxc_register_device(&mxc_asrc_device, &mxc_asrc_data);
 	}
+
+	spi_device_init();
 
 	i2c_register_board_info(0, mxc_i2c0_board_info,
 				ARRAY_SIZE(mxc_i2c0_board_info));
@@ -997,22 +1350,22 @@ static void __init mxc_board_init(void)
 	clk_put(spdif_audio_data.ext_ram_clk);
 	mxc_register_device(&mxc_spdif_audio_device, &spdif_audio_data);
 
+	mx5_set_otghost_vbus_func(mx53_gpio_usbotg_driver_vbus);
 	mx5_usb_dr_init();
-	mx5_set_host1_vbus_func(mx53_loco_usbh1_vbus);
 	mx5_usbh1_init();
 	mxc_register_device(&mxc_v4l2_device, NULL);
 	mxc_register_device(&mxc_v4l2out_device, NULL);
-	loco_add_device_buttons();
-	pm_power_off = da9053_power_off;
+	mxc_register_device(&mxc_bt_rfkill, &mxc_bt_rfkill_data);
+	smd_add_device_buttons();
+	smd_add_device_battery();
 	pm_i2c_init(I2C1_BASE_ADDR - MX53_OFFSET);
-	platform_device_register(&leds_gpio);
 }
 
 static void __init mx53_loco_timer_init(void)
 {
 	struct clk *uart_clk;
 
-	mx53_clocks_init(32768, 24000000, 0, 0);
+	mx53_clocks_init(32768, 24000000, 22579200, 0);
 
 	uart_clk = clk_get_sys("mxcintuart.0", NULL);
 	early_console_setup(MX53_BASE_ADDR(UART1_BASE_ADDR), uart_clk);
@@ -1026,7 +1379,7 @@ static struct sys_timer mxc_timer = {
  * The following uses standard kernel macros define in arch.h in order to
  * initialize __mach_desc_MX53_BEBOARD data structure.
  */
-MACHINE_START(MX53_BEBOARD, "Freescale MX53 BEBOARD Board")
+MACHINE_START(MX53_BEBOARD, "BalticEmbedded MX53 BEBOARD Board")
 	/* Maintainer: Freescale Semiconductor, Inc. */
 	.fixup = fixup_mxc_board,
 	.map_io = mx5_map_io,
