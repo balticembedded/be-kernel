@@ -71,9 +71,9 @@
 #include "pmic.h"
 
 /*!
- * @file mach-mx5/mx53_be_first.c
+ * @file mach-mx5/mx53_beboard.c
  *
- * @brief This file contains MX53 BE_FIRST board specific initialization routines.
+ * @brief This file contains MX53 BEBOARD board specific initialization routines.
  *
  * @ingroup MSL_MX53
  */
@@ -439,7 +439,7 @@ static struct mxc_fb_platform_data fb_data[] = {
 extern int primary_di;
 static int __init mxc_init_fb(void)
 {
-	if (!machine_is_mx53_loco())
+	if (!machine_is_mx53_beboard()) //machine_is_mx53_beboard() is generated automatically
 		return 0;
 
 	/*for loco board, set default display as VGA*/
@@ -1024,9 +1024,9 @@ static struct sys_timer mxc_timer = {
 
 /*
  * The following uses standard kernel macros define in arch.h in order to
- * initialize __mach_desc_MX53_BE_FIRST data structure.
+ * initialize __mach_desc_MX53_BEBOARD data structure.
  */
-MACHINE_START(MX53_BE_FIRST, "Freescale MX53 BE_FIRST Board")
+MACHINE_START(MX53_BEBOARD, "Freescale MX53 BEBOARD Board")
 	/* Maintainer: Freescale Semiconductor, Inc. */
 	.fixup = fixup_mxc_board,
 	.map_io = mx5_map_io,
