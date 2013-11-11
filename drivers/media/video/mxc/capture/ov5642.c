@@ -43,6 +43,9 @@
 #define OV5642_XCLK_MIN 6000000
 #define OV5642_XCLK_MAX 24000000
 
+#define OV5642_NIGHT_MODE_REG  (0x5580)
+#define OV5642_NIGHT_MODE_MASK (0b00100100)
+
 enum ov5642_mode {
 	ov5642_mode_MIN = 0,
 	ov5642_mode_VGA_640_480 = 0,
@@ -2555,6 +2558,7 @@ static struct v4l2_int_ioctl_desc ov5642_ioctl_desc[] = {
 				(v4l2_int_ioctl_func *)ioctl_g_chip_ident},
 };
 
+
 static struct v4l2_int_slave ov5642_slave = {
 	.ioctls = ov5642_ioctl_desc,
 	.num_ioctls = ARRAY_SIZE(ov5642_ioctl_desc),
@@ -2568,6 +2572,156 @@ static struct v4l2_int_device ov5642_int_device = {
 		.slave = &ov5642_slave,
 	},
 };
+
+
+/*!
+ * ov5642_night_mode_inquire - ov5642 Night-mode inquiry function
+ * @dev: pointer to standard generic device structure
+ * @buf: buffer to write the state to
+ *
+ * Inquires about night mode state and writes it to @buf
+ */
+static ssize_t
+ov5642_night_mode_inquire(struct device *dev,
+                          struct device_attribute *attr,
+                          char *buf)
+{
+	u8 tmp;
+	#ifndef CONFIG_MXC_IPU_V1
+		cam_data *cam;
+	#endif /* !CONFIG_MXC_IPU_V1 */
+	
+	/* Enable i2c clock */
+	// FIXME: Isn't enabling/disabling i2c clock here causing a race condition?
+	#ifdef CONFIG_MXC_IPU_V1
+		ipu_csi_enable_mclk(CSI_MCLK_I2C, true, true);
+	#else
+		// NOTE: v4l2-int-device.h says I shouldn't access master directly, but we do it anyway.
+		cam = ov5642_slave.master->priv;
+		if (!cam)
+			return -1; // FIXME: Specific error code?
+		ipu_csi_enable_mclk(cam->csi, true, true);
+	#endif /* CONFIG_MXC_IPU_V1 */
+	
+	/* Read register's current value */
+	if (ov5642_read_reg(OV5642_NIGHT_MODE_REG, &tmp)==-1)
+		return -1; // FIXME: Specific error code?
+	
+	/* Disable i2c clock */
+	#ifdef CONFIG_MXC_IPU_V1
+		ipu_csi_enable_mclk(CSI_MCLK_I2C, false, false);
+	#else
+		ipu_csi_enable_mclk(cam->csi, false, false);
+	#endif /* CONFIG_MXC_IPU_V1 */
+	
+	/* Prepare output */
+	switch (tmp & OV5642_NIGHT_MODE_MASK)
+	{
+		case 0:                      /* night-mode disabled */
+			buf[0] = '0';
+			break;
+		
+		case OV5642_NIGHT_MODE_MASK: /* night-mode enabled */
+			buf[0] = '1';
+			break;
+		
+		default:                     /* indeterminate night-mode state */
+			// FIXME: Should I give value, or return error here?
+			buf[0] = '\?';
+			break;
+	}
+	buf[1] = '\n'; /* Add trailing newline */
+	
+	return 2;
+}
+
+/*!
+ * ov5642_night_mode_set - ov5642 Night-mode switch function
+ * @dev: pointer to standard generic device structure
+ * @buf: data written into sysfs node from userspace
+ * @count: size of passed buffer
+ *
+ * Inquires about night mode state and writes it to @buf
+ */
+static ssize_t
+ov5642_night_mode_set(struct device *dev,
+                      struct device_attribute *attr,
+                      const char *buf, size_t count)
+{
+	u8 tmp;
+	#ifndef CONFIG_MXC_IPU_V1
+		cam_data *cam;
+	#endif /* !CONFIG_MXC_IPU_V1 */
+	
+	/* Check buffer size */
+	if (!(count==1 || (count==2 && buf[1]=='\n')))
+	{
+		pr_err("%s:buffer:count=%zu,val='%.*s'\n",
+			__func__, count, count, buf);
+		return -1; // FIXME: Specific error code?
+	}
+	
+	// FIXME: Should we disable viewfinder here?
+	
+	/* Enable i2c clock */
+	// FIXME: Isn't enabling/disabling i2c clock here causing a race condition?
+	#ifdef CONFIG_MXC_IPU_V1
+		ipu_csi_enable_mclk(CSI_MCLK_I2C, true, true);
+	#else
+		// NOTE: v4l2-int-device.h says I shouldn't access master directly, but we do it anyway.
+		cam = ov5642_slave.master->priv;
+		if (!cam)
+			return -1; // FIXME: Specific error code?
+		ipu_csi_enable_mclk(cam->csi, true, true);
+	#endif /* CONFIG_MXC_IPU_V1 */
+	
+	/* Read register's current value */
+	if (ov5642_read_reg(OV5642_NIGHT_MODE_REG, &tmp)==-1)
+		return -1; // FIXME: Specific error code?
+	
+	switch (*buf)
+	{
+		case '0': /* Disable night-mode */
+			tmp &= ~OV5642_NIGHT_MODE_MASK;
+			break;
+		
+		case '1': /* Enable night-mode */
+			tmp |= OV5642_NIGHT_MODE_MASK;
+			break;
+		
+		default:
+			return -1; // FIXME: Specific error code?
+	}
+	
+	/* Write back modified value */
+	if (ov5642_write_reg(OV5642_NIGHT_MODE_REG, tmp)==-1)
+		return -1; // FIXME: Specific error code?
+	
+	/* Disable i2c clock */
+	#ifdef CONFIG_MXC_IPU_V1
+		ipu_csi_enable_mclk(CSI_MCLK_I2C, false, false);
+	#else
+		ipu_csi_enable_mclk(cam->csi, false, false);
+	#endif /* CONFIG_MXC_IPU_V1 */
+	
+	// FIXME: Should reenable viewfinder here, if we disabled it before
+	
+	return count;
+}
+
+
+/*!
+ * This stucture defines night-mode switch sysfs attribute.
+ */
+static struct device_attribute ov5642_dev_attr_night_mode = {
+	.attr = {
+		.name = "night_mode",
+		.mode = S_IRUGO | S_IWUSR,
+	},
+	.show = &ov5642_night_mode_inquire,
+	.store = &ov5642_night_mode_set,
+};
+
 
 /*!
  * ov5642 I2C probe function
@@ -2660,6 +2814,10 @@ static int ov5642_probe(struct i2c_client *client,
 
 	ov5642_int_device.priv = &ov5642_data;
 	retval = v4l2_int_device_register(&ov5642_int_device);
+	
+	/* Register the night mode sysfs attribute */
+	// TODO: Check retval?
+	device_create_file(&(client->dev), &ov5642_dev_attr_night_mode);
 
 	return retval;
 
@@ -2686,6 +2844,10 @@ err1:
 static int ov5642_remove(struct i2c_client *client)
 {
 	pr_debug("BE: ov5642_remove");
+	
+	/* Unregister night mode sysfs attribute */
+	device_remove_file(&(client->dev), &ov5642_dev_attr_night_mode);
+	
 	v4l2_int_device_unregister(&ov5642_int_device);
 
 	if (gpo_regulator) {
