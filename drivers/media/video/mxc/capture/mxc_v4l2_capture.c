@@ -1493,9 +1493,12 @@ static int mxc_v4l_open(struct file *file)
 		return -EBADF;
 	}
 
-	if (cam->sensor == NULL ||
-	    cam->sensor->type != v4l2_int_type_slave) {
-		pr_err("ERROR: v4l2 capture: slave not found!\n");
+	if (cam->sensor == NULL ) {
+		pr_err("ERROR: cam->sensor v4l2 capture: slave not found!\n");
+		return -EAGAIN;
+	} // MY CHANGED
+	else if(cam->sensor->type != v4l2_int_type_slave){
+		pr_err("ERROR: cam->sensor->type != v4l2_int_type_slave v4l2 capture: slave not found!\n");
 		return -EAGAIN;
 	}
 
@@ -2484,18 +2487,28 @@ static void init_camera_struct(cam_data *cam, struct platform_device *pdev)
 	pr_debug("In MVC: init_camera_struct\n");
 
 	/* Default everything to 0 */
+	//cam should be now null, because it was allocated right before this function
 	memset(cam, 0, sizeof(cam_data));
 
 	init_MUTEX(&cam->param_lock);
 	init_MUTEX(&cam->busy_lock);
 
+	//
 	cam->video_dev = video_device_alloc();
-	if (cam->video_dev == NULL)
+	if (cam->video_dev == NULL){
+		pr_err("cam->video_dev IS NULL ERROR\n");
 		return;
+	}
+	else{
+		pr_debug("cam->video_dev inited ok.\n");
+	}
+		
 
 	*(cam->video_dev) = mxc_v4l_template;
 
+	//cam is set as dev->priv ...
 	video_set_drvdata(cam->video_dev, cam);
+	pr_debug("cam_data *cam is now set as dev->priv oject.\n");
 	dev_set_drvdata(&pdev->dev, (void *)cam);
 	cam->video_dev->minor = -1;
 
@@ -2590,6 +2603,7 @@ static int mxc_v4l2_probe(struct platform_device *pdev)
 		pr_err("ERROR: v4l2 capture: failed to register camera\n");
 		return -1;
 	}
+	pr_debug("mxc_v4l2_probe");
 	init_camera_struct(g_cam, pdev);
 	pdev->dev.release = camera_platform_release;
 
@@ -2743,6 +2757,9 @@ static struct platform_driver mxc_v4l2_driver = {
  */
 static int mxc_v4l2_master_attach(struct v4l2_int_device *slave)
 {
+	
+	pr_debug("mxc_v4l2_master_attach");
+	
 	cam_data *cam = slave->u.slave->master->priv;
 	struct v4l2_format cam_fmt;
 
@@ -2815,7 +2832,7 @@ static __init int camera_init(void)
 {
 	u8 err = 0;
 
-	pr_debug("In MVC:camera_init\n");
+	pr_debug("=====================\nIn MVC:camera_init\n");
 
 	/* Register the device driver structure. */
 	err = platform_driver_register(&mxc_v4l2_driver);
