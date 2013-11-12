@@ -480,6 +480,14 @@ static int fb_show_logo_line(struct fb_info *info, int rotate,
 			fb_rotate_logo(info, logo_rotate, &image, rotate);
 	}
 
+	// Centers linux boot logo image. Added by Baltic Embedded.
+	// FIXME not tested for multiple core hardware, because as it seems
+	// it adds multiple logos, which maybe will look strange.
+	// Do we need config option for this?
+	// http://www.digi.com/support/kbase/kbaseresultdetl?id=3312
+	image.dx = (info->var.xres - image.width) / 2;
+	image.dy = (info->var.yres - image.height) / 2;	
+
 	fb_do_show_logo(info, &image, rotate, n);
 
 	kfree(palette);
