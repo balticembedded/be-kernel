@@ -658,7 +658,7 @@ static struct mxc_fb_platform_data fb_data[] = {
 extern int primary_di;
 static int __init mxc_init_fb(void)
 {
-	if (!machine_is_mx53_loco())
+	if (!machine_is_mx53_beboard())
 		return 0;
 
 	/*for loco board, set default display as VGA*/
